@@ -44,6 +44,8 @@ implementation
 uses
   System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl;
 
+{$R *.dfm}
+
 var
   CurrentSort: Integer;
 
