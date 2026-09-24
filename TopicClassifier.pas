@@ -90,7 +90,7 @@ function ReadDocxText(const AFileName: string): string;
 var
   Zip: TZipFile;
   Index: Integer;
-  TempName: string;
+  Bytes: TBytes;
 begin
   Result := '';
   Zip := TZipFile.Create;
@@ -99,14 +99,8 @@ begin
     Index := Zip.IndexOf('word/document.xml');
     if Index >= 0 then
     begin
-      TempName := TPath.GetTempFileName;
-      try
-        Zip.Read(Index, TempName);
-        Result := StripXml(TFile.ReadAllText(TempName, TEncoding.UTF8));
-      finally
-        if TFile.Exists(TempName) then
-          TFile.Delete(TempName);
-      end;
+      Zip.Read(Index, Bytes);
+      Result := StripXml(TEncoding.UTF8.GetString(Bytes));
     end;
   except
     Result := '';
