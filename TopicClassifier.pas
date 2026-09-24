@@ -89,25 +89,28 @@ end;
 function ReadDocxText(const AFileName: string): string;
 var
   Zip: TZipFile;
-  Stream: TMemoryStream;
   Index: Integer;
+  TempName: string;
 begin
   Result := '';
   Zip := TZipFile.Create;
-  Stream := TMemoryStream.Create;
   try
     Zip.Open(AFileName, zmRead);
     Index := Zip.IndexOf('word/document.xml');
     if Index >= 0 then
     begin
-      Zip.Read(Index, Stream);
-      Stream.Position := 0;
-      Result := StripXml(TEncoding.UTF8.GetString(Stream.Memory, Stream.Size));
+      TempName := TPath.GetTempFileName;
+      try
+        Zip.Read(Index, TempName);
+        Result := StripXml(TFile.ReadAllText(TempName, TEncoding.UTF8));
+      finally
+        if TFile.Exists(TempName) then
+          TFile.Delete(TempName);
+      end;
     end;
   except
     Result := '';
   end;
-  Stream.Free;
   Zip.Free;
 end;
 
