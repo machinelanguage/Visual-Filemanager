@@ -34,6 +34,8 @@ type
     destructor Destroy; override;
   end;
 
+procedure CreateVisualFileManager;
+
 var
   FrmVisualFileManager: TFrmVisualFileManager;
 
@@ -44,6 +46,11 @@ uses
 
 var
   CurrentSort: Integer;
+
+procedure CreateVisualFileManager;
+begin
+  Application.CreateForm(TFrmVisualFileManager, FrmVisualFileManager);
+end;
 
 constructor TFrmVisualFileManager.Create(AOwner: TComponent);
 begin

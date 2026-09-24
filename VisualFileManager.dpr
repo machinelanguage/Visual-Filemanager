@@ -2,13 +2,13 @@ program VisualFileManager;
 
 uses
   Vcl.Forms,
-  MainForm in 'MainForm.pas' {FrmVisualFileManager};
+  MainForm in 'MainForm.pas';
 
 {$R *.res}
 
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TFrmVisualFileManager, FrmVisualFileManager);
+  CreateVisualFileManager;
   Application.Run;
 end.
