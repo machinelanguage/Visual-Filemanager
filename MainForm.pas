@@ -327,7 +327,11 @@ end;
 
 function TFrmVisualFileManager.TopicColor(const ATopic: string): TColor;
 begin
-  if ATopic = 'Finans' then Result := $004EA3F1
+  if ATopic = 'Eğitim ve Öğretim' then Result := $00A1662F
+  else if ATopic = 'Gıda ve Tarifler' then Result := $0038A8A0
+  else if ATopic = 'E-Ticaret ve Lojistik' then Result := $00D97706
+  else if ATopic = 'OCR Bekliyor' then Result := $006B7280
+  else if ATopic = 'Finans' then Result := $004EA3F1
   else if ATopic = 'Hukuk' then Result := $007A55C2
   else if ATopic = 'Projeler' then Result := $0038A169
   else if ATopic = 'Medya' then Result := $003D8CFF
@@ -367,7 +371,10 @@ begin
   PreviewLabel.Parent := Card;
   PreviewLabel.SetBounds(20, 51, Card.Width - 30, 16);
   PreviewLabel.Font.Color := $00606060;
-  PreviewLabel.Caption := Copy(AFile.Preview, 1, 150);
+  if (AFile.Topic = 'OCR Bekliyor') and (AFile.Preview = '') then
+    PreviewLabel.Caption := 'Görüntü tabanlı PDF: konu başlığı için OCR gerekir.'
+  else
+    PreviewLabel.Caption := Copy(AFile.Preview, 1, 150);
 end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);

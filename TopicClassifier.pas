@@ -296,9 +296,15 @@ function ClassifyFile(const AFileName: string; const AText: string;
   out AConfidence: Integer): string;
 var
   Haystack: string;
-  Finance, Legal, Project, Media, Personal: Integer;
+  Finance, Legal, Project, Media, Personal, Education, Food, Commerce: Integer;
 begin
   Haystack := LowerCase(ExtractFileName(AFileName) + ' ' + AText);
+  Education := ScoreWords(Haystack, ['bilsem', 'eğitim', 'öğrenci', 'öyg',
+    'müzik', 'yıllık plan', 'uyum grubu', 'kazanım']);
+  Food := ScoreWords(Haystack, ['elma', 'meyve', 'tarif', 'saklama', 'mutfak',
+    'gıda', 'vitamin']);
+  Commerce := ScoreWords(Haystack, ['amazon', 'iade', 'sipariş', 'kargo',
+    'barkod', 'teslimat', 'return']);
   Finance := ScoreWords(Haystack, ['fatura', 'invoice', 'ödeme', 'payment',
     'banka', 'bank', 'muhasebe', 'teklif', 'price']);
   Legal := ScoreWords(Haystack, ['sözleşme', 'contract', 'hukuk', 'kanun',
@@ -309,15 +315,21 @@ begin
     'müzik', 'music', 'tasarım', 'design']);
   Personal := ScoreWords(Haystack, ['özgeçmiş', 'cv', 'kişisel', 'personal',
     'notlar', 'notes', 'aile', 'family']);
-  AConfidence := Finance;
-  Result := 'Finans';
+  AConfidence := Education;
+  Result := 'Eğitim ve Öğretim';
+  if Food > AConfidence then begin AConfidence := Food; Result := 'Gıda ve Tarifler'; end;
+  if Commerce > AConfidence then begin AConfidence := Commerce; Result := 'E-Ticaret ve Lojistik'; end;
+  if Finance > AConfidence then begin AConfidence := Finance; Result := 'Finans'; end;
   if Legal > AConfidence then begin AConfidence := Legal; Result := 'Hukuk'; end;
   if Project > AConfidence then begin AConfidence := Project; Result := 'Projeler'; end;
   if Media > AConfidence then begin AConfidence := Media; Result := 'Medya'; end;
   if Personal > AConfidence then begin AConfidence := Personal; Result := 'Kişisel'; end;
   if AConfidence = 0 then
   begin
-    Result := 'Diğer';
+    if SameText(ExtractFileExt(AFileName), '.pdf') then
+      Result := 'OCR Bekliyor'
+    else
+      Result := 'Diğer';
     AConfidence := 0;
   end;
 end;
