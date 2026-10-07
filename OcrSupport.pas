@@ -38,9 +38,7 @@ var
   Root: string;
   Files: TArray<string>;
 begin
-  Result := FindInPath('pdftoppm.exe');
-  if Result <> '' then
-    Exit;
+  Result := '';
   Root := TPath.Combine(GetEnvironmentVariable('LOCALAPPDATA'),
     'Microsoft\WinGet\Packages');
   if DirectoryExists(Root) then
@@ -54,6 +52,8 @@ begin
       Result := '';
     end;
   end;
+  if Result = '' then
+    Result := FindInPath('pdftoppm.exe');
 end;
 
 function RunHidden(const ACommandLine, AWorkFolder: string): Boolean;
