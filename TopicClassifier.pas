@@ -239,9 +239,10 @@ begin
       end;
     end;
     until FilterPos = 0;
-    if TryOcrPdfFirstPage(AFileName, OcrText) then
-      Result := Result + ' ' + OcrText;
-    Result := CompactWhitespace(Result);
+    if TryOcrPdfPages(AFileName, OcrText) and (Length(Trim(OcrText)) > 20) then
+      Result := OcrText
+    else
+      Result := CompactWhitespace(Result);
   except
     Result := '';
   end;
@@ -309,12 +310,12 @@ var
   Text, Part, FirstLine, SecondLine: string;
   I, StartPos: Integer;
 begin
-  Text := CompactWhitespace(AText);
+  Text := Trim(AText);
   FirstLine := '';
   SecondLine := '';
   StartPos := 1;
   for I := 1 to Length(Text) do
-    if CharInSet(Text[I], ['.', '!', '?']) then
+    if CharInSet(Text[I], ['.', '!', '?', #10, #13]) then
     begin
       Part := Trim(Copy(Text, StartPos, I - StartPos + 1));
       StartPos := I + 1;
@@ -330,9 +331,17 @@ begin
       end;
     end;
   if FirstLine = '' then
-    FirstLine := 'Belge metninden ozet cikarilamadi.';
+    FirstLine := Copy(CompactWhitespace(Text), 1, 170);
+  if FirstLine = '' then
+    FirstLine := 'Belge metni okunamadi; dosya adi ile siniflandirildi.';
   if SecondLine = '' then
-    SecondLine := 'Dosya adi ve bulunan metin konu siniflandirmasinda kullanildi.';
+  begin
+    Part := CompactWhitespace(Text);
+    if Length(Part) > 175 then
+      SecondLine := Copy(Part, 176, 170)
+    else
+      SecondLine := 'Metindeki ana ifadeler konu siniflandirmasinda kullanildi.';
+  end;
   Result := 'Konu: ' + ATopic + #13#10 + #214'zet: ' + FirstLine + #13#10 +
     'Detay: ' + SecondLine;
 end;

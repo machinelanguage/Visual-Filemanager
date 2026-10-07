@@ -2,7 +2,7 @@ unit OcrSupport;
 
 interface
 
-function TryOcrPdfFirstPage(const AFileName: string; out AText: string): Boolean;
+function TryOcrPdfPages(const AFileName: string; out AText: string): Boolean;
 
 implementation
 
@@ -83,10 +83,12 @@ begin
   end;
 end;
 
-function TryOcrPdfFirstPage(const AFileName: string; out AText: string): Boolean;
+function TryOcrPdfPages(const AFileName: string; out AText: string): Boolean;
 var
-  Tesseract, Pdftoppm, TempFolder, BaseName, ImageName, OutputBase: string;
+  Tesseract, Pdftoppm, TempFolder, BaseName, OutputBase, PageText: string;
   RenderCommand, OcrCommand: string;
+  ImageFiles, TextFiles: TArray<string>;
+  I: Integer;
 begin
   Result := False;
   AText := '';
@@ -97,24 +99,38 @@ begin
   TempFolder := TPath.Combine(TPath.GetTempPath, 'VisualFileManagerOcr');
   ForceDirectories(TempFolder);
   BaseName := TPath.Combine(TempFolder, 'page_' + IntToHex(GetTickCount, 8));
-  ImageName := BaseName + '.png';
-  OutputBase := BaseName + '_ocr';
-  RenderCommand := QuoteArg(Pdftoppm) + ' -f 1 -l 1 -r 160 -singlefile -png ' +
+  RenderCommand := QuoteArg(Pdftoppm) + ' -f 1 -l 3 -r 160 -png ' +
     QuoteArg(AFileName) + ' ' + QuoteArg(BaseName);
-  OcrCommand := QuoteArg(Tesseract) + ' ' + QuoteArg(ImageName) + ' ' +
-    QuoteArg(OutputBase) + ' -l tur+eng --psm 6';
   try
-    if RunHidden(RenderCommand, TempFolder) and FileExists(ImageName) and
-      RunHidden(OcrCommand, TempFolder) and FileExists(OutputBase + '.txt') then
+    if RunHidden(RenderCommand, TempFolder) then
     begin
-      AText := TFile.ReadAllText(OutputBase + '.txt', TEncoding.UTF8);
+      ImageFiles := TDirectory.GetFiles(TempFolder,
+        ExtractFileName(BaseName) + '-*.png');
+      for I := 0 to High(ImageFiles) do
+      begin
+        OutputBase := ChangeFileExt(ImageFiles[I], '') + '_ocr';
+        OcrCommand := QuoteArg(Tesseract) + ' ' + QuoteArg(ImageFiles[I]) + ' ' +
+          QuoteArg(OutputBase) + ' -l tur+eng --psm 6';
+        if RunHidden(OcrCommand, TempFolder) and FileExists(OutputBase + '.txt') then
+        begin
+          PageText := TFile.ReadAllText(OutputBase + '.txt', TEncoding.UTF8);
+          if Trim(PageText) <> '' then
+            AText := AText + PageText + sLineBreak;
+        end;
+      end;
       Result := Trim(AText) <> '';
     end;
   finally
-    if FileExists(ImageName) then
-      TFile.Delete(ImageName);
-    if FileExists(OutputBase + '.txt') then
-      TFile.Delete(OutputBase + '.txt');
+    ImageFiles := TDirectory.GetFiles(TempFolder,
+      ExtractFileName(BaseName) + '-*.png');
+    for I := 0 to High(ImageFiles) do
+      if FileExists(ImageFiles[I]) then
+        TFile.Delete(ImageFiles[I]);
+    TextFiles := TDirectory.GetFiles(TempFolder,
+      ExtractFileName(BaseName) + '-*_ocr.txt');
+    for I := 0 to High(TextFiles) do
+      if FileExists(TextFiles[I]) then
+        TFile.Delete(TextFiles[I]);
   end;
 end;
 
