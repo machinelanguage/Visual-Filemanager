@@ -1,7 +1,7 @@
-﻿object FrmVisualFileManager: TFrmVisualFileManager
+object FrmVisualFileManager: TFrmVisualFileManager
   Left = 0
   Top = 0
-  Caption = 'Konusal Dosya Yöneticisi'
+  Caption = 'Konusal Dosya Y'#246'neticisi'
   ClientHeight = 760
   ClientWidth = 1200
   Color = clBtnFace

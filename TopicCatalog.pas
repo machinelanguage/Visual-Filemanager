@@ -118,7 +118,7 @@ begin
     Signature(ASize, AModifiedAt));
   if Result then
   begin
-    ATopic := FIni.ReadString('Topic', Key, 'Diğer');
+    ATopic := FIni.ReadString('Topic', Key, 'Di'#287'er');
     AConfidence := FIni.ReadInteger('Confidence', Key, 0);
   end;
 end;

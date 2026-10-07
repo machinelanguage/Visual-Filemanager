@@ -1,4 +1,3 @@
-﻿{$CODEPAGE UTF8}
 unit MainForm;
 
 interface
@@ -85,7 +84,7 @@ procedure TFrmVisualFileManager.BuildUi;
 var
   Button: TButton;
 begin
-  Caption := 'Konusal Dosya Yöneticisi';
+  Caption := 'Konusal Dosya Y'#246'neticisi';
   Width := 1200;
   Height := 760;
   Color := $00F7F7F7;
@@ -101,25 +100,25 @@ begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Button := TButton.Create(Self);
   Button.Parent := ToolPanel;
-  Button.Caption := 'Klasör Seç';
+  Button.Caption := 'Klas'#246'r Se'#231;
   Button.SetBounds(514, 13, 86, 27);
   Button.OnClick := BrowseClick;
   Button := TButton.Create(Self);
   Button.Parent := ToolPanel;
-  Button.Caption := 'Tara ve Sınıflandır';
+  Button.Caption := 'Tara ve S'#305'n'#305'fland'#305'r';
   Button.SetBounds(608, 13, 142, 27);
   Button.OnClick := ScanClick;
   SearchEdit := TEdit.Create(Self);
   SearchEdit.Parent := ToolPanel;
   SearchEdit.SetBounds(16, 46, 350, 23);
-  SearchEdit.TextHint := 'Dosya veya içerikte ara...';
+  SearchEdit.TextHint := 'Dosya veya i'#231'erikte ara...';
   SearchEdit.OnChange := SearchChange;
   SortBox := TComboBox.Create(Self);
   SortBox.Parent := ToolPanel;
   SortBox.SetBounds(376, 46, 174, 23);
   SortBox.Style := csDropDownList;
   SortBox.Items.Add('Konu, sonra ad');
-  SortBox.Items.Add('Dosya adı');
+  SortBox.Items.Add('Dosya ad'#305);
   SortBox.Items.Add('En yeni');
   SortBox.Items.Add('Boyut');
   SortBox.ItemIndex := 0;
@@ -129,14 +128,14 @@ begin
   CategoryBox.SetBounds(560, 46, 190, 23);
   CategoryBox.Style := csDropDownList;
   CategoryBox.OnChange := CategoryChange;
-  CategoryBox.Items.Add('Tüm Kategoriler');
+  CategoryBox.Items.Add('T'#252'm Kategoriler');
   CategoryBox.ItemIndex := 0;
   StatusLabel := TLabel.Create(Self);
   StatusLabel.Parent := ToolPanel;
   StatusLabel.SetBounds(765, 49, 410, 18);
   StatusLabel.ShowHint := True;
   StatusLabel.Hint := 'Katalog: ' + FCatalog.CatalogFileName;
-  StatusLabel.Caption := 'Bir klasör seçip taramayı başlatın.';
+  StatusLabel.Caption := 'Bir klas'#246'r se'#231'ip taramay'#305' ba'#351'lat'#305'n.';
   TopicTree := TTreeView.Create(Self);
   TopicTree.Parent := Self;
   TopicTree.Align := alLeft;
@@ -154,7 +153,7 @@ var
   Folder: string;
 begin
   Folder := FolderEdit.Text;
-  if SelectDirectory('Taranacak klasörü seçin', '', Folder) then
+  if SelectDirectory('Taranacak klas'#246'r'#252' se'#231'in', '', Folder) then
     FolderEdit.Text := Folder;
 end;
 
@@ -178,8 +177,8 @@ begin
   end;
   if IsIndexable(AFileName) and not CanReadIndexableFile(AFileName) then
   begin
-    Item.Preview := 'İçerik okunamadı: bulut dosyasını çevrimdışı kullanılabilir yapın.';
-    Item.Topic := 'Bulut Dosyası Hazır Değil';
+    Item.Preview := #304#231'erik okunamad'#305': bulut dosyas'#305'n'#305' '#231'evrimd'#305#351#305' kullan'#305'labilir yap'#305'n.';
+    Item.Topic := 'Bulut Dosyas'#305' Haz'#305'r De'#287'il';
     Item.Confidence := 0;
     FFiles.Add(Item);
     Exit;
@@ -224,7 +223,7 @@ procedure TFrmVisualFileManager.ScanClick(Sender: TObject);
 begin
   if not DirectoryExists(FolderEdit.Text) then
   begin
-    ShowMessage('Geçerli bir klasör seçin.');
+    ShowMessage('Ge'#231'erli bir klas'#246'r se'#231'in.');
     Exit;
   end;
   Screen.Cursor := crHourGlass;
@@ -259,7 +258,7 @@ begin
       CategoryBox.Items.BeginUpdate;
       try
         CategoryBox.Items.Clear;
-        CategoryBox.Items.Add('Tüm Kategoriler');
+        CategoryBox.Items.Add('T'#252'm Kategoriler');
         CategoryBox.Items.AddStrings(Categories);
         OldIndex := CategoryBox.Items.IndexOf(OldTopic);
         if OldIndex < 0 then
@@ -336,16 +335,16 @@ end;
 
 function TFrmVisualFileManager.TopicColor(const ATopic: string): TColor;
 begin
-  if ATopic = 'Bulut Dosyası Hazır Değil' then Result := $006B7280
-  else if ATopic = 'Eğitim ve Öğretim' then Result := $00A1662F
-  else if ATopic = 'Gıda ve Tarifler' then Result := $0038A8A0
+  if ATopic = 'Bulut Dosyas'#305' Haz'#305'r De'#287'il' then Result := $006B7280
+  else if ATopic = 'E'#287'itim ve '#214#287'retim' then Result := $00A1662F
+  else if ATopic = 'G'#305'da ve Tarifler' then Result := $0038A8A0
   else if ATopic = 'E-Ticaret ve Lojistik' then Result := $00D97706
   else if ATopic = 'OCR Bekliyor' then Result := $006B7280
   else if ATopic = 'Finans' then Result := $004EA3F1
   else if ATopic = 'Hukuk' then Result := $007A55C2
   else if ATopic = 'Projeler' then Result := $0038A169
   else if ATopic = 'Medya' then Result := $003D8CFF
-  else if ATopic = 'Kişisel' then Result := $00805AD5
+  else if ATopic = 'Ki'#351'isel' then Result := $00805AD5
   else Result := $00808080;
 end;
 
@@ -374,7 +373,7 @@ begin
   DetailLabel.Parent := Card;
   DetailLabel.SetBounds(20, 31, Card.Width - 30, 16);
   DetailLabel.Font.Color := clGray;
-  DetailLabel.Caption := Format('%s  |  %s  |  %d KB  |  güven: %d',
+  DetailLabel.Caption := Format('%s  |  %s  |  %d KB  |  g'#252'ven: %d',
     [AFile.Extension, DateTimeToStr(AFile.ModifiedAt), AFile.Size div 1024,
     AFile.Confidence]);
   PreviewLabel := TLabel.Create(Self);
@@ -382,7 +381,7 @@ begin
   PreviewLabel.SetBounds(20, 51, Card.Width - 30, 16);
   PreviewLabel.Font.Color := $00606060;
   if (AFile.Topic = 'OCR Bekliyor') and (AFile.Preview = '') then
-    PreviewLabel.Caption := 'Görüntü tabanlı PDF: konu başlığı için OCR gerekir.'
+    PreviewLabel.Caption := 'G'#246'r'#252'nt'#252' tabanl'#305' PDF: konu ba'#351'l'#305#287#305' i'#231'in OCR gerekir.'
   else
     PreviewLabel.Caption := Copy(AFile.Preview, 1, 150);
 end;

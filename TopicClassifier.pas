@@ -1,4 +1,3 @@
-﻿{$CODEPAGE UTF8}
 unit TopicClassifier;
 
 interface
@@ -323,37 +322,37 @@ var
   Finance, Legal, Project, Media, Personal, Education, Food, Commerce: Integer;
 begin
   Haystack := LowerCase(ExtractFileName(AFileName) + ' ' + AText);
-  Education := ScoreWords(Haystack, ['bilsem', 'eğitim', 'öğrenci', 'öyg',
-    'müzik', 'yıllık plan', 'uyum grubu', 'kazanım']);
+  Education := ScoreWords(Haystack, ['bilsem', 'e'#287'itim', '#246#287'renci', '#246'yg',
+    'm'#252'zik', 'y'#305'll'#305'k plan', 'uyum grubu', 'kazan'#305'm']);
   Food := ScoreWords(Haystack, ['elma', 'meyve', 'tarif', 'saklama', 'mutfak',
-    'gıda', 'vitamin']);
-  Commerce := ScoreWords(Haystack, ['amazon', 'iade', 'sipariş', 'kargo',
+    'g'#305'da', 'vitamin']);
+  Commerce := ScoreWords(Haystack, ['amazon', 'iade', 'sipari'#351, 'kargo',
     'barkod', 'teslimat', 'return']);
-  Finance := ScoreWords(Haystack, ['fatura', 'invoice', 'ödeme', 'payment',
+  Finance := ScoreWords(Haystack, ['fatura', 'invoice', '#246'deme', 'payment',
     'banka', 'bank', 'muhasebe', 'teklif', 'price']);
-  Legal := ScoreWords(Haystack, ['sözleşme', 'contract', 'hukuk', 'kanun',
+  Legal := ScoreWords(Haystack, ['s'#246'zle'#351'me', 'contract', 'hukuk', 'kanun',
     'kvkk', 'gizlilik', 'privacy', 'protokol']);
-  Project := ScoreWords(Haystack, ['proje', 'project', 'toplantı', 'meeting',
-    'plan', 'görev', 'task', 'rapor', 'report']);
-  Media := ScoreWords(Haystack, ['fotoğraf', 'photo', 'image', 'video',
-    'müzik', 'music', 'tasarım', 'design']);
-  Personal := ScoreWords(Haystack, ['özgeçmiş', 'cv', 'kişisel', 'personal',
+  Project := ScoreWords(Haystack, ['proje', 'project', 'toplant'#305, 'meeting',
+    'plan', 'g'#246'rev', 'task', 'rapor', 'report']);
+  Media := ScoreWords(Haystack, ['foto'#287'raf', 'photo', 'image', 'video',
+    'm'#252'zik', 'music', 'tasar'#305'm', 'design']);
+  Personal := ScoreWords(Haystack, [''#246'zge'#231'mi'#351', 'cv', 'ki'#351'isel', 'personal',
     'notlar', 'notes', 'aile', 'family']);
   AConfidence := Education;
-  Result := 'Eğitim ve Öğretim';
-  if Food > AConfidence then begin AConfidence := Food; Result := 'Gıda ve Tarifler'; end;
+  Result := 'E'#287'itim ve '#214#287'retim';
+  if Food > AConfidence then begin AConfidence := Food; Result := 'G'#305'da ve Tarifler'; end;
   if Commerce > AConfidence then begin AConfidence := Commerce; Result := 'E-Ticaret ve Lojistik'; end;
   if Finance > AConfidence then begin AConfidence := Finance; Result := 'Finans'; end;
   if Legal > AConfidence then begin AConfidence := Legal; Result := 'Hukuk'; end;
   if Project > AConfidence then begin AConfidence := Project; Result := 'Projeler'; end;
   if Media > AConfidence then begin AConfidence := Media; Result := 'Medya'; end;
-  if Personal > AConfidence then begin AConfidence := Personal; Result := 'Kişisel'; end;
+  if Personal > AConfidence then begin AConfidence := Personal; Result := 'Ki'#351'isel'; end;
   if AConfidence = 0 then
   begin
     if SameText(ExtractFileExt(AFileName), '.pdf') then
       Result := 'OCR Bekliyor'
     else
-      Result := 'Diğer';
+      Result := 'Di'#287'er';
     AConfidence := 0;
   end;
 end;
