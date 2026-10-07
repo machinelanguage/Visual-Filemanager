@@ -336,7 +336,7 @@ begin
     'plan', 'g'#246'rev', 'task', 'rapor', 'report']);
   Media := ScoreWords(Haystack, ['foto'#287'raf', 'photo', 'image', 'video',
     'm'#252'zik', 'music', 'tasar'#305'm', 'design']);
-  Personal := ScoreWords(Haystack, [#246'zge'#231'mi'#351', 'cv', 'ki'#351'isel', 'personal',
+  Personal := ScoreWords(Haystack, [#246'zge'#231'mi'#351, 'cv', 'ki'#351'isel', 'personal',
     'notlar', 'notes', 'aile', 'family']);
   AConfidence := Education;
   Result := 'E'#287'itim ve '#214#287'retim';
