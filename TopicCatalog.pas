@@ -25,6 +25,7 @@ type
     function LastFolder: string;
     procedure SetLastFolder(const AFolder: string);
     procedure Save;
+    property CatalogFileName: string read FFileName;
   end;
 
 implementation
@@ -41,6 +42,8 @@ begin
   ForceDirectories(Folder);
   FFileName := TPath.Combine(Folder, 'topic-catalog.ini');
   FIni := TMemIniFile.Create(FFileName, TEncoding.UTF8);
+  FIni.WriteString('Settings', 'CatalogVersion', '2');
+  FIni.UpdateFile;
 end;
 
 destructor TTopicCatalog.Destroy;
@@ -85,7 +88,7 @@ end;
 function TTopicCatalog.Signature(const ASize: Int64;
   const AModifiedAt: TDateTime): string;
 begin
-  Result := IntToStr(ASize) + '|' + DateTimeToStr(AModifiedAt);
+  Result := '2|' + IntToStr(ASize) + '|' + DateTimeToStr(AModifiedAt);
 end;
 
 function TTopicCatalog.TryGetTopic(const AFileName: string; const ASize: Int64;

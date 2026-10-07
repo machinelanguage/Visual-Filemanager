@@ -25,10 +25,11 @@ function IsIndexable(const AFileName: string): Boolean;
 implementation
 
 uses
-  System.IOUtils, System.StrUtils, System.Types, System.Zip;
+  System.IOUtils, System.StrUtils, System.Types, System.Zip, System.ZLib;
 
 const
   MaxIndexedChars = 120000;
+  MaxPdfBytes = 4194304;
 
 function CompactWhitespace(const S: string): string;
 var
@@ -108,37 +109,132 @@ begin
   Zip.Free;
 end;
 
-function ReadPdfText(const AFileName: string): string;
+function PrintableBytes(const ABytes: TBytes): string;
 var
-  Bytes: TBytes;
   I: Integer;
   C: Byte;
+begin
+  Result := '';
+  for I := 0 to High(ABytes) do
+  begin
+    C := ABytes[I];
+    if (C >= 32) and (C <= 126) then
+      Result := Result + Char(C)
+    else
+      Result := Result + ' ';
+    if Length(Result) >= MaxIndexedChars then
+      Break;
+  end;
+end;
+
+function PdfMarkerText(const ABytes: TBytes): string;
+var
+  I: Integer;
+  C: Byte;
+begin
+  SetLength(Result, Length(ABytes));
+  for I := 0 to High(ABytes) do
+  begin
+    C := ABytes[I];
+    if (C >= 32) and (C <= 126) then
+      Result[I + 1] := Char(C)
+    else
+      Result[I + 1] := ' ';
+  end;
+end;
+
+function InflatePdfStream(const ABytes: TBytes; out AText: string): Boolean;
+var
+  Input, Output: TMemoryStream;
+  ZStream: TZDecompressionStream;
+  Buffer: array[0..8191] of Byte;
+  ReadCount: Integer;
+  Decoded: TBytes;
+begin
+  Result := False;
+  AText := '';
+  if Length(ABytes) = 0 then
+    Exit;
+  Input := TMemoryStream.Create;
+  Output := TMemoryStream.Create;
+  try
+    try
+      Input.WriteBuffer(ABytes[0], Length(ABytes));
+      Input.Position := 0;
+      ZStream := TZDecompressionStream.Create(Input);
+      try
+        repeat
+          ReadCount := ZStream.Read(Buffer, SizeOf(Buffer));
+          if ReadCount > 0 then
+            Output.WriteBuffer(Buffer, ReadCount);
+        until (ReadCount = 0) or (Output.Size >= MaxIndexedChars);
+      finally
+        ZStream.Free;
+      end;
+      SetLength(Decoded, Output.Size);
+      if Output.Size > 0 then
+      begin
+        Output.Position := 0;
+        Output.ReadBuffer(Decoded[0], Output.Size);
+      end;
+      AText := PrintableBytes(Decoded);
+      Result := AText <> '';
+    except
+      AText := '';
+      Result := False;
+    end;
+    finally
+      Output.Free;
+      Input.Free;
+    end;
+end;
+
+function ReadPdfText(const AFileName: string): string;
+var
+  Bytes, StreamBytes: TBytes;
   Stream: TFileStream;
-  Count: Integer;
+  Count, StartPos, EndPos, FilterPos, StreamPos: Integer;
+  RawText, DecodedText: string;
 begin
   Result := '';
   try
     Stream := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyNone);
     try
       Count := Stream.Size;
-      if Count > MaxIndexedChars then
-        Count := MaxIndexedChars;
+      if Count > MaxPdfBytes then
+        Count := MaxPdfBytes;
       SetLength(Bytes, Count);
       if Count > 0 then
         Stream.ReadBuffer(Bytes[0], Count);
     finally
       Stream.Free;
     end;
-    for I := 0 to High(Bytes) do
+    RawText := PdfMarkerText(Bytes);
+    Result := PrintableBytes(Bytes);
+    FilterPos := 1;
+    repeat
     begin
-      C := Bytes[I];
-      if (C >= 32) and (C <= 126) then
-        Result := Result + Char(C)
-      else
-        Result := Result + ' ';
-      if Length(Result) >= MaxIndexedChars then
-        Break;
+      FilterPos := PosEx('/FlateDecode', RawText, FilterPos);
+      if FilterPos > 0 then
+      begin
+        StreamPos := PosEx('stream', RawText, FilterPos);
+        EndPos := PosEx('endstream', RawText, StreamPos);
+        if (StreamPos > 0) and (EndPos > StreamPos) then
+        begin
+          StartPos := StreamPos + Length('stream');
+          while (StartPos <= Length(RawText)) and
+            CharInSet(RawText[StartPos], [#10, #13, ' ']) do
+            Inc(StartPos);
+          StreamBytes := Copy(Bytes, StartPos - 1, EndPos - StartPos);
+          if InflatePdfStream(StreamBytes, DecodedText) then
+            Result := Result + ' ' + DecodedText;
+          FilterPos := EndPos + Length('endstream');
+        end
+        else
+          Inc(FilterPos);
+      end;
     end;
+    until FilterPos = 0;
     Result := CompactWhitespace(Result);
   except
     Result := '';

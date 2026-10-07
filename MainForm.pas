@@ -133,6 +133,8 @@ begin
   StatusLabel := TLabel.Create(Self);
   StatusLabel.Parent := ToolPanel;
   StatusLabel.SetBounds(765, 49, 410, 18);
+  StatusLabel.ShowHint := True;
+  StatusLabel.Hint := 'Katalog: ' + FCatalog.CatalogFileName;
   StatusLabel.Caption := 'Bir klasör seçip taramayı başlatın.';
   TopicTree := TTreeView.Create(Self);
   TopicTree.Parent := Self;
@@ -319,8 +321,8 @@ begin
       Inc(TopPos, 95);
     end;
   end;
-  StatusLabel.Caption := Format('%d dosya bulundu. İçerik indekslenen biçimler: TXT, PDF, DOCX.',
-    [FFiles.Count]);
+  StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
+    [FFiles.Count, ExtractFileName(FCatalog.CatalogFileName)]);
 end;
 
 function TFrmVisualFileManager.TopicColor(const ATopic: string): TColor;
