@@ -17,9 +17,12 @@ end;
 function FindInPath(const AFileName: string): string;
 var
   Buffer: array[0..MAX_PATH] of Char;
+  FilePart: PChar;
 begin
   Result := '';
-  if SearchPath(nil, PChar(AFileName), nil, MAX_PATH, Buffer, nil) > 0 then
+  FilePart := nil;
+  if SearchPath(nil, PChar(AFileName), nil, MAX_PATH, PChar(@Buffer[0]),
+    FilePart) > 0 then
     Result := Buffer;
 end;
 
