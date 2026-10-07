@@ -1,4 +1,4 @@
-object FrmVisualFileManager: TFrmVisualFileManager
+﻿object FrmVisualFileManager: TFrmVisualFileManager
   Left = 0
   Top = 0
   Caption = 'Konusal Dosya Yöneticisi'

@@ -1,3 +1,4 @@
+﻿{$CODEPAGE UTF8}
 unit TopicClassifier;
 
 interface
@@ -21,6 +22,7 @@ function ReadIndexableText(const AFileName: string): string;
 function ClassifyFile(const AFileName: string; const AText: string;
   out AConfidence: Integer): string;
 function IsIndexable(const AFileName: string): Boolean;
+function CanReadIndexableFile(const AFileName: string): Boolean;
 
 implementation
 
@@ -251,6 +253,25 @@ begin
   Ext := LowerCase(ExtractFileExt(AFileName));
   Result := MatchText(Ext, ['.txt', '.csv', '.log', '.md', '.json', '.xml',
     '.ini', '.pas', '.html', '.htm', '.css', '.js', '.pdf', '.docx']);
+end;
+
+function CanReadIndexableFile(const AFileName: string): Boolean;
+var
+  Stream: TFileStream;
+begin
+  Result := True;
+  if not IsIndexable(AFileName) then
+    Exit;
+  try
+    Stream := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyNone);
+    try
+      Result := True;
+    finally
+      Stream.Free;
+    end;
+  except
+    Result := False;
+  end;
 end;
 
 function ReadIndexableText(const AFileName: string): string;

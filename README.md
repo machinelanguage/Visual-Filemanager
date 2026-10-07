@@ -29,3 +29,8 @@ Delphi 10.2 ile `VisualFileManager.dpr` dosyasını açıp Win32 hedefinde derle
 Uygulama herhangi bir ağ servisine veya veritabanına ihtiyaç duymaz.
 Katalog, kullanıcının Belgeler klasöründe `VisualFileManager\\topic-catalog.ini`
 dosyasında tutulur.
+
+Nextcloud veya OneDrive gibi bulut sağlayıcılarında yalnızca çevrimiçi görünen
+PDF'ler indekslenemez. Önce dosyayı `çevrimdışı kullanılabilir` yapın; ardından
+taramayı yenileyin. Bulut sağlayıcısı dosyayı açamadığında uygulama bunu
+`Bulut Dosyası Hazır Değil` kategorisinde gösterir.

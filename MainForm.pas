@@ -1,3 +1,4 @@
+﻿{$CODEPAGE UTF8}
 unit MainForm;
 
 interface
@@ -175,6 +176,14 @@ begin
     Item.Size := 0;
     Item.ModifiedAt := 0;
   end;
+  if IsIndexable(AFileName) and not CanReadIndexableFile(AFileName) then
+  begin
+    Item.Preview := 'İçerik okunamadı: bulut dosyasını çevrimdışı kullanılabilir yapın.';
+    Item.Topic := 'Bulut Dosyası Hazır Değil';
+    Item.Confidence := 0;
+    FFiles.Add(Item);
+    Exit;
+  end;
   Item.Preview := ReadIndexableText(AFileName);
   if not FCatalog.TryGetTopic(Item.FullName, Item.Size, Item.ModifiedAt,
     Item.Topic, Item.Confidence) then
@@ -327,7 +336,8 @@ end;
 
 function TFrmVisualFileManager.TopicColor(const ATopic: string): TColor;
 begin
-  if ATopic = 'Eğitim ve Öğretim' then Result := $00A1662F
+  if ATopic = 'Bulut Dosyası Hazır Değil' then Result := $006B7280
+  else if ATopic = 'Eğitim ve Öğretim' then Result := $00A1662F
   else if ATopic = 'Gıda ve Tarifler' then Result := $0038A8A0
   else if ATopic = 'E-Ticaret ve Lojistik' then Result := $00D97706
   else if ATopic = 'OCR Bekliyor' then Result := $006B7280
