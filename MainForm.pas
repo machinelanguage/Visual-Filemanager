@@ -3,7 +3,7 @@ unit MainForm;
 interface
 
 uses
-  Winapi.Windows, System.SysUtils, System.Classes, System.Types,
+  Winapi.Windows, Winapi.ShellAPI, System.SysUtils, System.Classes, System.Types,
   System.Generics.Collections, System.Generics.Defaults, Vcl.Controls, Vcl.Forms, Vcl.StdCtrls,
   Vcl.ComCtrls, Vcl.ExtCtrls, Vcl.Graphics, Vcl.Dialogs, TopicClassifier,
   TopicCatalog;
@@ -15,6 +15,7 @@ type
     FCatalog: TTopicCatalog;
     FRootFolder: string;
     FUpdatingCategories: Boolean;
+    FFlipPhase: Boolean;
     ToolPanel: TPanel;
     TopicTree: TTreeView;
     Cards: TScrollBox;
@@ -23,18 +24,22 @@ type
     SortBox: TComboBox;
     CategoryBox: TComboBox;
     StatusLabel: TLabel;
+    FlipTimer: TTimer;
     procedure BuildUi;
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SortChange(Sender: TObject);
     procedure CategoryChange(Sender: TObject);
+    procedure CardClick(Sender: TObject);
+    procedure FlipTimerTick(Sender: TObject);
     procedure ScanFolder(const AFolder: string);
     procedure AddFile(const AFileName: string);
     procedure Render;
-    procedure AddCard(const AFile: TManagedFile; const ATop: Integer);
+    procedure AddCard(const AFile: TManagedFile; const AIndex, ATop: Integer);
     procedure UpdateCategoryBox;
     function TopicColor(const ATopic: string): TColor;
+    function AlternateTopicColor(const ATopic: string): TColor;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -146,6 +151,9 @@ begin
   Cards.Align := alClient;
   Cards.Color := $00F7F7F7;
   Cards.VertScrollBar.Tracking := True;
+  FlipTimer := TTimer.Create(Self);
+  FlipTimer.Interval := 550;
+  FlipTimer.OnTimer := FlipTimerTick;
 end;
 
 procedure TFrmVisualFileManager.BrowseClick(Sender: TObject);
@@ -179,6 +187,9 @@ begin
   begin
     Item.Preview := #304#231'erik okunamad'#305': bulut dosyas'#305'n'#305' '#231'evrimd'#305#351#305' kullan'#305'labilir yap'#305'n.';
     Item.Topic := 'Bulut Dosyas'#305' Haz'#305'r De'#287'il';
+    Item.Summary := 'Konu: ' + Item.Topic + #13#10 +
+      #214'zet: Dosya bulut saglayicisindan indirilemedi.' + #13#10 +
+      'Detay: Dosyayi cevrimdisi kullanilabilir yapin.';
     Item.Confidence := 0;
     FFiles.Add(Item);
     Exit;
@@ -191,6 +202,10 @@ begin
     FCatalog.SaveTopic(Item.FullName, Item.Size, Item.ModifiedAt, Item.Topic,
       Item.Confidence);
   end;
+  if Item.Extension = '.pdf' then
+    Item.Summary := BuildThreeLineSummary(Item.Topic, Item.Preview)
+  else
+    Item.Summary := Copy(Item.Preview, 1, 250);
   FFiles.Add(Item);
 end;
 
@@ -325,8 +340,8 @@ begin
       ((Query = '') or ContainsText(LowerCase(Item.DisplayName), Query) or
       ContainsText(LowerCase(Item.Preview), Query)) then
     begin
-      AddCard(Item, TopPos);
-      Inc(TopPos, 95);
+      AddCard(Item, I, TopPos);
+      Inc(TopPos, 132);
     end;
   end;
   StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
@@ -348,27 +363,44 @@ begin
   else Result := $00808080;
 end;
 
-procedure TFrmVisualFileManager.AddCard(const AFile: TManagedFile; const ATop: Integer);
+function TFrmVisualFileManager.AlternateTopicColor(const ATopic: string): TColor;
+var
+  Base: TColor;
+begin
+  Base := ColorToRGB(TopicColor(ATopic));
+  Result := RGB((GetRValue(Base) + 255) div 2, (GetGValue(Base) + 255) div 2,
+    (GetBValue(Base) + 255) div 2);
+end;
+
+procedure TFrmVisualFileManager.AddCard(const AFile: TManagedFile;
+  const AIndex, ATop: Integer);
 var
   Card, Badge: TPanel;
-  NameLabel, DetailLabel, PreviewLabel: TLabel;
+  NameLabel, DetailLabel, SummaryLabel: TLabel;
 begin
   Card := TPanel.Create(Self);
   Card.Parent := Cards;
-  Card.SetBounds(14, ATop, Cards.ClientWidth - 34, 78);
+  Card.SetBounds(14, ATop, Cards.ClientWidth - 34, 116);
   Card.Anchors := [akLeft, akTop, akRight];
   Card.BevelOuter := bvNone;
   Card.Color := clWhite;
+  Card.Tag := AIndex;
+  Card.OnClick := CardClick;
   Badge := TPanel.Create(Self);
   Badge.Parent := Card;
   Badge.SetBounds(0, 0, 8, Card.Height);
   Badge.Color := TopicColor(AFile.Topic);
   Badge.BevelOuter := bvNone;
+  Badge.Tag := AIndex;
+  Badge.Hint := 'FlipBadge';
+  Badge.OnClick := CardClick;
   NameLabel := TLabel.Create(Self);
   NameLabel.Parent := Card;
   NameLabel.SetBounds(20, 10, Card.Width - 30, 18);
   NameLabel.Font.Style := [fsBold];
   NameLabel.Caption := AFile.DisplayName + '   [' + AFile.Topic + ']';
+  NameLabel.Tag := AIndex;
+  NameLabel.OnClick := CardClick;
   DetailLabel := TLabel.Create(Self);
   DetailLabel.Parent := Card;
   DetailLabel.SetBounds(20, 31, Card.Width - 30, 16);
@@ -376,14 +408,54 @@ begin
   DetailLabel.Caption := Format('%s  |  %s  |  %d KB  |  g'#252'ven: %d',
     [AFile.Extension, DateTimeToStr(AFile.ModifiedAt), AFile.Size div 1024,
     AFile.Confidence]);
-  PreviewLabel := TLabel.Create(Self);
-  PreviewLabel.Parent := Card;
-  PreviewLabel.SetBounds(20, 51, Card.Width - 30, 16);
-  PreviewLabel.Font.Color := $00606060;
-  if (AFile.Topic = 'OCR Bekliyor') and (AFile.Preview = '') then
-    PreviewLabel.Caption := 'G'#246'r'#252'nt'#252' tabanl'#305' PDF: konu ba'#351'l'#305#287#305' i'#231'in OCR gerekir.'
-  else
-    PreviewLabel.Caption := Copy(AFile.Preview, 1, 150);
+  DetailLabel.Tag := AIndex;
+  DetailLabel.OnClick := CardClick;
+  SummaryLabel := TLabel.Create(Self);
+  SummaryLabel.Parent := Card;
+  SummaryLabel.SetBounds(20, 51, Card.Width - 30, 55);
+  SummaryLabel.Font.Color := $00606060;
+  SummaryLabel.AutoSize := False;
+  SummaryLabel.WordWrap := True;
+  SummaryLabel.Caption := AFile.Summary;
+  SummaryLabel.Tag := AIndex;
+  SummaryLabel.OnClick := CardClick;
+end;
+
+procedure TFrmVisualFileManager.CardClick(Sender: TObject);
+var
+  Index: Integer;
+begin
+  Index := TControl(Sender).Tag;
+  if (Index < 0) or (Index >= FFiles.Count) then
+    Exit;
+  ShellExecute(Handle, 'open', PChar(FFiles[Index].FullName), nil, nil,
+    SW_SHOWNORMAL);
+end;
+
+procedure TFrmVisualFileManager.FlipTimerTick(Sender: TObject);
+var
+  I, J, Index: Integer;
+  Card: TWinControl;
+  Control: TControl;
+begin
+  FFlipPhase := not FFlipPhase;
+  for I := 0 to Cards.ControlCount - 1 do
+  begin
+    Card := TWinControl(Cards.Controls[I]);
+    for J := 0 to Card.ControlCount - 1 do
+    begin
+      Control := Card.Controls[J];
+      if (Control is TPanel) and (Control.Hint = 'FlipBadge') then
+      begin
+        Index := Control.Tag;
+        if (Index >= 0) and (Index < FFiles.Count) then
+          if FFlipPhase then
+            TPanel(Control).Color := TopicColor(FFiles[Index].Topic)
+          else
+            TPanel(Control).Color := AlternateTopicColor(FFiles[Index].Topic);
+      end;
+    end;
+  end;
 end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);

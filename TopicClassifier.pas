@@ -14,6 +14,7 @@ type
     Size: Int64;
     ModifiedAt: TDateTime;
     Preview: string;
+    Summary: string;
     Confidence: Integer;
   end;
 
@@ -22,6 +23,7 @@ function ClassifyFile(const AFileName: string; const AText: string;
   out AConfidence: Integer): string;
 function IsIndexable(const AFileName: string): Boolean;
 function CanReadIndexableFile(const AFileName: string): Boolean;
+function BuildThreeLineSummary(const ATopic, AText: string): string;
 
 implementation
 
@@ -288,6 +290,51 @@ begin
     Result := '';
   if Length(Result) > MaxIndexedChars then
     SetLength(Result, MaxIndexedChars);
+end;
+
+function IsUsefulSummarySentence(const S: string): Boolean;
+var
+  I, LetterCount: Integer;
+begin
+  LetterCount := 0;
+  for I := 1 to Length(S) do
+    if CharInSet(S[I], ['A'..'Z', 'a'..'z']) then
+      Inc(LetterCount);
+  Result := (Length(S) >= 25) and (LetterCount >= 18) and
+    (Pos('/FlateDecode', S) = 0) and (Pos('endstream', S) = 0);
+end;
+
+function BuildThreeLineSummary(const ATopic, AText: string): string;
+var
+  Text, Part, FirstLine, SecondLine: string;
+  I, StartPos: Integer;
+begin
+  Text := CompactWhitespace(AText);
+  FirstLine := '';
+  SecondLine := '';
+  StartPos := 1;
+  for I := 1 to Length(Text) do
+    if CharInSet(Text[I], ['.', '!', '?']) then
+    begin
+      Part := Trim(Copy(Text, StartPos, I - StartPos + 1));
+      StartPos := I + 1;
+      if IsUsefulSummarySentence(Part) then
+      begin
+        if FirstLine = '' then
+          FirstLine := Copy(Part, 1, 170)
+        else if SecondLine = '' then
+        begin
+          SecondLine := Copy(Part, 1, 170);
+          Break;
+        end;
+      end;
+    end;
+  if FirstLine = '' then
+    FirstLine := 'Belge metninden ozet cikarilamadi.';
+  if SecondLine = '' then
+    SecondLine := 'Dosya adi ve bulunan metin konu siniflandirmasinda kullanildi.';
+  Result := 'Konu: ' + ATopic + #13#10 + #214'zet: ' + FirstLine + #13#10 +
+    'Detay: ' + SecondLine;
 end;
 
 function Occurrences(const AText, AWord: string): Integer;
