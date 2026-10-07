@@ -9,6 +9,9 @@ Delphi 10.2 VCL ile hazırlanmış, yerelde çalışan görsel dosya sınıfland
 - Finans, Hukuk, Projeler, Medya, Kişisel ve Diğer konularına puanla ayırır.
 - Renkli kartlar ile dosya konusunu, önizlemeyi, boyutu ve güven puanını gösterir.
 - Dosya adı veya indekslenen içerikte arama yapar.
+- PDF dahil sınıflandırma sonucunu kalıcı katalogda saklar; son taranan klasör
+  uygulama açıldığında yeniden yüklenir.
+- Konu açılır kutusundan seçim yapıldığında yalnızca ilgili dosyaları gösterir.
 
 ## Metin çıkarma kapsamı
 
@@ -22,3 +25,5 @@ uzantıya göre yine listelenir.
 
 Delphi 10.2 ile `VisualFileManager.dpr` dosyasını açıp Win32 hedefinde derleyin.
 Uygulama herhangi bir ağ servisine veya veritabanına ihtiyaç duymaz.
+Katalog, kullanıcının Belgeler klasöründe `VisualFileManager\\topic-catalog.ini`
+dosyasında tutulur.

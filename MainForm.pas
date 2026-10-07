@@ -5,29 +5,35 @@ interface
 uses
   Winapi.Windows, System.SysUtils, System.Classes, System.Types,
   System.Generics.Collections, System.Generics.Defaults, Vcl.Controls, Vcl.Forms, Vcl.StdCtrls,
-  Vcl.ComCtrls, Vcl.ExtCtrls, Vcl.Graphics, Vcl.Dialogs, TopicClassifier;
+  Vcl.ComCtrls, Vcl.ExtCtrls, Vcl.Graphics, Vcl.Dialogs, TopicClassifier,
+  TopicCatalog;
 
 type
   TFrmVisualFileManager = class(TForm)
   private
     FFiles: TList<TManagedFile>;
+    FCatalog: TTopicCatalog;
     FRootFolder: string;
+    FUpdatingCategories: Boolean;
     ToolPanel: TPanel;
     TopicTree: TTreeView;
     Cards: TScrollBox;
     FolderEdit: TEdit;
     SearchEdit: TEdit;
     SortBox: TComboBox;
+    CategoryBox: TComboBox;
     StatusLabel: TLabel;
     procedure BuildUi;
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SortChange(Sender: TObject);
+    procedure CategoryChange(Sender: TObject);
     procedure ScanFolder(const AFolder: string);
     procedure AddFile(const AFileName: string);
     procedure Render;
     procedure AddCard(const AFile: TManagedFile; const ATop: Integer);
+    procedure UpdateCategoryBox;
     function TopicColor(const ATopic: string): TColor;
   public
     constructor Create(AOwner: TComponent); override;
@@ -58,11 +64,18 @@ constructor TFrmVisualFileManager.Create(AOwner: TComponent);
 begin
   inherited;
   FFiles := TList<TManagedFile>.Create;
+  FCatalog := TTopicCatalog.Create;
   BuildUi;
+  if DirectoryExists(FCatalog.LastFolder) then
+  begin
+    FolderEdit.Text := FCatalog.LastFolder;
+    ScanClick(nil);
+  end;
 end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
+  FCatalog.Free;
   FFiles.Free;
   inherited;
 end;
@@ -110,9 +123,16 @@ begin
   SortBox.Items.Add('Boyut');
   SortBox.ItemIndex := 0;
   SortBox.OnChange := SortChange;
+  CategoryBox := TComboBox.Create(Self);
+  CategoryBox.Parent := ToolPanel;
+  CategoryBox.SetBounds(560, 46, 190, 23);
+  CategoryBox.Style := csDropDownList;
+  CategoryBox.OnChange := CategoryChange;
+  CategoryBox.Items.Add('Tüm Kategoriler');
+  CategoryBox.ItemIndex := 0;
   StatusLabel := TLabel.Create(Self);
   StatusLabel.Parent := ToolPanel;
-  StatusLabel.SetBounds(570, 49, 520, 18);
+  StatusLabel.SetBounds(765, 49, 410, 18);
   StatusLabel.Caption := 'Bir klasör seçip taramayı başlatın.';
   TopicTree := TTreeView.Create(Self);
   TopicTree.Parent := Self;
@@ -154,7 +174,13 @@ begin
     Item.ModifiedAt := 0;
   end;
   Item.Preview := ReadIndexableText(AFileName);
-  Item.Topic := ClassifyFile(AFileName, Item.Preview, Item.Confidence);
+  if not FCatalog.TryGetTopic(Item.FullName, Item.Size, Item.ModifiedAt,
+    Item.Topic, Item.Confidence) then
+  begin
+    Item.Topic := ClassifyFile(AFileName, Item.Preview, Item.Confidence);
+    FCatalog.SaveTopic(Item.FullName, Item.Size, Item.ModifiedAt, Item.Topic,
+      Item.Confidence);
+  end;
   FFiles.Add(Item);
 end;
 
@@ -194,10 +220,48 @@ begin
   try
     FFiles.Clear;
     FRootFolder := FolderEdit.Text;
+    FCatalog.SetLastFolder(FRootFolder);
     ScanFolder(FRootFolder);
+    FCatalog.Save;
     Render;
   finally
     Screen.Cursor := crDefault;
+  end;
+end;
+
+procedure TFrmVisualFileManager.UpdateCategoryBox;
+var
+  Categories: TStringList;
+  I, OldIndex: Integer;
+  OldTopic: string;
+begin
+  OldIndex := CategoryBox.ItemIndex;
+  OldTopic := CategoryBox.Text;
+  Categories := TStringList.Create;
+  try
+    Categories.Sorted := True;
+    Categories.Duplicates := dupIgnore;
+    for I := 0 to FFiles.Count - 1 do
+      Categories.Add(FFiles[I].Topic);
+    FUpdatingCategories := True;
+    try
+      CategoryBox.Items.BeginUpdate;
+      try
+        CategoryBox.Items.Clear;
+        CategoryBox.Items.Add('Tüm Kategoriler');
+        CategoryBox.Items.AddStrings(Categories);
+        OldIndex := CategoryBox.Items.IndexOf(OldTopic);
+        if OldIndex < 0 then
+          OldIndex := 0;
+        CategoryBox.ItemIndex := OldIndex;
+      finally
+        CategoryBox.Items.EndUpdate;
+      end;
+    finally
+      FUpdatingCategories := False;
+    end;
+  finally
+    Categories.Free;
   end;
 end;
 
@@ -221,10 +285,11 @@ var
   I, TopPos: Integer;
   Node: TTreeNode;
   Item: TManagedFile;
-  Query: string;
+  Query, TopicFilter: string;
 begin
   CurrentSort := SortBox.ItemIndex;
   FFiles.Sort(TComparer<TManagedFile>.Construct(CompareFiles));
+  UpdateCategoryBox;
   TopicTree.Items.BeginUpdate;
   try
     TopicTree.Items.Clear;
@@ -242,11 +307,13 @@ begin
   while Cards.ControlCount > 0 do Cards.Controls[0].Free;
   TopPos := 12;
   Query := LowerCase(Trim(SearchEdit.Text));
+  TopicFilter := CategoryBox.Text;
   for I := 0 to FFiles.Count - 1 do
   begin
     Item := FFiles[I];
-    if (Query = '') or ContainsText(LowerCase(Item.DisplayName), Query) or
-      ContainsText(LowerCase(Item.Preview), Query) then
+    if ((CategoryBox.ItemIndex = 0) or SameText(Item.Topic, TopicFilter)) and
+      ((Query = '') or ContainsText(LowerCase(Item.DisplayName), Query) or
+      ContainsText(LowerCase(Item.Preview), Query)) then
     begin
       AddCard(Item, TopPos);
       Inc(TopPos, 95);
@@ -309,6 +376,12 @@ end;
 procedure TFrmVisualFileManager.SortChange(Sender: TObject);
 begin
   Render;
+end;
+
+procedure TFrmVisualFileManager.CategoryChange(Sender: TObject);
+begin
+  if not FUpdatingCategories then
+    Render;
 end;
 
 end.
