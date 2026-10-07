@@ -322,13 +322,13 @@ var
   Finance, Legal, Project, Media, Personal, Education, Food, Commerce: Integer;
 begin
   Haystack := LowerCase(ExtractFileName(AFileName) + ' ' + AText);
-  Education := ScoreWords(Haystack, ['bilsem', 'e'#287'itim', '#246#287'renci', '#246'yg',
+  Education := ScoreWords(Haystack, ['bilsem', 'e'#287'itim', #246#287'renci', #246'yg',
     'm'#252'zik', 'y'#305'll'#305'k plan', 'uyum grubu', 'kazan'#305'm']);
   Food := ScoreWords(Haystack, ['elma', 'meyve', 'tarif', 'saklama', 'mutfak',
     'g'#305'da', 'vitamin']);
   Commerce := ScoreWords(Haystack, ['amazon', 'iade', 'sipari'#351, 'kargo',
     'barkod', 'teslimat', 'return']);
-  Finance := ScoreWords(Haystack, ['fatura', 'invoice', '#246'deme', 'payment',
+  Finance := ScoreWords(Haystack, ['fatura', 'invoice', #246'deme', 'payment',
     'banka', 'bank', 'muhasebe', 'teklif', 'price']);
   Legal := ScoreWords(Haystack, ['s'#246'zle'#351'me', 'contract', 'hukuk', 'kanun',
     'kvkk', 'gizlilik', 'privacy', 'protokol']);
@@ -336,7 +336,7 @@ begin
     'plan', 'g'#246'rev', 'task', 'rapor', 'report']);
   Media := ScoreWords(Haystack, ['foto'#287'raf', 'photo', 'image', 'video',
     'm'#252'zik', 'music', 'tasar'#305'm', 'design']);
-  Personal := ScoreWords(Haystack, [''#246'zge'#231'mi'#351', 'cv', 'ki'#351'isel', 'personal',
+  Personal := ScoreWords(Haystack, [#246'zge'#231'mi'#351', 'cv', 'ki'#351'isel', 'personal',
     'notlar', 'notes', 'aile', 'family']);
   AConfidence := Education;
   Result := 'E'#287'itim ve '#214#287'retim';
