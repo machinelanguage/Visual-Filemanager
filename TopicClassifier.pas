@@ -25,7 +25,8 @@ function IsIndexable(const AFileName: string): Boolean;
 implementation
 
 uses
-  System.IOUtils, System.StrUtils, System.Types, System.Zip, System.ZLib;
+  System.IOUtils, System.StrUtils, System.Types, System.Zip, System.ZLib,
+  OcrSupport;
 
 const
   MaxIndexedChars = 120000;
@@ -194,7 +195,7 @@ var
   Bytes, StreamBytes: TBytes;
   Stream: TFileStream;
   Count, StartPos, EndPos, FilterPos, StreamPos: Integer;
-  RawText, DecodedText: string;
+  RawText, DecodedText, OcrText: string;
 begin
   Result := '';
   try
@@ -235,6 +236,8 @@ begin
       end;
     end;
     until FilterPos = 0;
+    if TryOcrPdfFirstPage(AFileName, OcrText) then
+      Result := Result + ' ' + OcrText;
     Result := CompactWhitespace(Result);
   except
     Result := '';

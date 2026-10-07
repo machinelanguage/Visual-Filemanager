@@ -19,8 +19,9 @@ TXT, CSV, günlük, JSON, XML, kaynak kodu ve benzeri düz metinler doğrudan;
 DOCX, paket içindeki `word/document.xml` üzerinden; PDF ise sayfadaki okunabilir
 metin dizileri üzerinden taranır. Şifreli, taranmış görüntü PDF'leri ve eski DOC
 dosyaları için güvenilir yerel metin çıkarma bu sürümde yoktur; bu dosyalar ad ve
-uzantıya göre yine listelenir. Görüntü tabanlı PDF'ler combobox'ta `OCR Bekliyor`
-olarak ayrılır; gerçek başlık çıkarımı için bir OCR motoru gerekir.
+uzantıya göre yine listelenir. Görüntü tabanlı PDF'lerde ilk sayfa, kuruluysa
+Poppler `pdftoppm.exe` ve Tesseract `tur+eng` ile yerel olarak OCR'dan geçirilir.
+Bu iki araç yoksa PDF, combobox'ta `OCR Bekliyor` olarak ayrılır.
 
 ## Derleme
 

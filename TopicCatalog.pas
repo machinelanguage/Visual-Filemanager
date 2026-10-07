@@ -42,7 +42,7 @@ begin
   ForceDirectories(Folder);
   FFileName := TPath.Combine(Folder, 'topic-catalog.ini');
   FIni := TMemIniFile.Create(FFileName, TEncoding.UTF8);
-  FIni.WriteString('Settings', 'CatalogVersion', '2');
+  FIni.WriteString('Settings', 'CatalogVersion', '3');
   FIni.UpdateFile;
 end;
 
@@ -88,7 +88,7 @@ end;
 function TTopicCatalog.Signature(const ASize: Int64;
   const AModifiedAt: TDateTime): string;
 begin
-  Result := '2|' + IntToStr(ASize) + '|' + DateTimeToStr(AModifiedAt);
+  Result := '3|' + IntToStr(ASize) + '|' + DateTimeToStr(AModifiedAt);
 end;
 
 function TTopicCatalog.TryGetTopic(const AFileName: string; const ASize: Int64;
