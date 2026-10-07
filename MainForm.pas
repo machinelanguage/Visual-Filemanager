@@ -331,7 +331,7 @@ begin
     end;
   end;
   StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
-    [FFiles.Count, ExtractFileName(FCatalog.CatalogFileName)]);
+    [FFiles.Count, FCatalog.CatalogFileName]);
 end;
 
 function TFrmVisualFileManager.TopicColor(const ATopic: string): TColor;

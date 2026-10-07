@@ -10,6 +10,7 @@ type
   private
     FFileName: string;
     FIni: TMemIniFile;
+    procedure OpenCatalog(const AFileName: string);
     function HashPath(const AFileName: string): string;
     function KeyForPath(const AFileName: string): string;
     function Signature(const ASize: Int64; const AModifiedAt: TDateTime): string;
@@ -35,12 +36,25 @@ uses
 
 constructor TTopicCatalog.Create;
 var
-  Folder: string;
+  Folder, LocalFile: string;
 begin
   inherited;
-  Folder := TPath.Combine(TPath.GetDocumentsPath, 'VisualFileManager');
-  ForceDirectories(Folder);
-  FFileName := TPath.Combine(Folder, 'topic-catalog.ini');
+  FIni := nil;
+  LocalFile := TPath.Combine(ExtractFilePath(ParamStr(0)), 'topic-catalog.ini');
+  try
+    OpenCatalog(LocalFile);
+  except
+    FIni.Free;
+    FIni := nil;
+    Folder := TPath.Combine(TPath.GetDocumentsPath, 'VisualFileManager');
+    ForceDirectories(Folder);
+    OpenCatalog(TPath.Combine(Folder, 'topic-catalog.ini'));
+  end;
+end;
+
+procedure TTopicCatalog.OpenCatalog(const AFileName: string);
+begin
+  FFileName := AFileName;
   FIni := TMemIniFile.Create(FFileName, TEncoding.UTF8);
   FIni.WriteString('Settings', 'CatalogVersion', '4');
   FIni.UpdateFile;
@@ -134,7 +148,8 @@ end;
 
 procedure TTopicCatalog.Save;
 begin
-  FIni.UpdateFile;
+  if Assigned(FIni) then
+    FIni.UpdateFile;
 end;
 
 end.
