@@ -86,12 +86,26 @@ object FrmVisualFileManager: TFrmVisualFileManager
         'Liste'
         'Kucuk simgeler')
     end
+    object FilterBox: TComboBox
+      Left = 680
+      Top = 46
+      Width = 150
+      Height = 23
+      Style = csDropDownList
+      ItemIndex = 0
+      TabOrder = 6
+      Text = 'Medya ve PDF'
+      OnChange = FilterChange
+      Items.Strings = (
+        'Medya ve PDF'
+        'Tum dosyalar')
+    end
     object StatusLabel: TLabel
-      Left = 690
+      Left = 840
       Top = 49
       Width = 234
       Height = 13
-      Caption = 'Bir klasor secip dosyalari tarayin.'
+      Caption = 'Medya veya PDF klasoru secin.'
     end
   end
   object FileList: TListView
@@ -121,6 +135,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
         Caption = 'Tam yol'
         Width = 480
       end>
+    LargeImages = ThumbnailImages
     OwnerData = True
     ReadOnly = True
     RowSelect = True
@@ -142,5 +157,19 @@ object FrmVisualFileManager: TFrmVisualFileManager
     OnTimer = ScanTimerTick
     Left = 1080
     Top = 16
+  end
+  object ThumbnailTimer: TTimer
+    Enabled = False
+    Interval = 100
+    OnTimer = ThumbnailTimerTick
+    Left = 1120
+    Top = 16
+  end
+  object ThumbnailImages: TImageList
+    ColorDepth = cd32Bit
+    Height = 120
+    Width = 160
+    Left = 1040
+    Top = 48
   end
 end
