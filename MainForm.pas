@@ -5,8 +5,8 @@ interface
 uses
   Winapi.Windows, Winapi.ShellAPI, System.SysUtils, System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
-  Vcl.Controls,
-  Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Dialogs;
+  Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
+  Vcl.Dialogs, Vcl.ImgList;
 
 type
   TFileEntry = record
@@ -20,16 +20,20 @@ type
   TFileScanWorker = class(TThread)
   private
     FRootFolder: string;
+    FThumbnailFolder: string;
+    FMediaOnly: Boolean;
     FItems: TList<TFileEntry>;
     FLock: TCriticalSection;
     FReadPosition: Integer;
     FCompleted: Boolean;
     procedure ScanFolder(const AFolder: string);
     procedure AddFile(const AFileName: string; const ASearch: TSearchRec);
+    function IsIncludedFile(const AFileName: string): Boolean;
   protected
     procedure Execute; override;
   public
-    constructor Create(const ARootFolder: string);
+    constructor Create(const ARootFolder, AThumbnailFolder: string;
+      const AMediaOnly: Boolean);
     destructor Destroy; override;
     function TakeBatch(const ADestination: TList<TFileEntry>;
       const AMaximum: Integer): Integer;
@@ -44,26 +48,43 @@ type
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
+    FilterBox: TComboBox;
     StatusLabel: TLabel;
     FileList: TListView;
     SearchTimer: TTimer;
     ScanTimer: TTimer;
+    ThumbnailTimer: TTimer;
+    ThumbnailImages: TImageList;
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
+    procedure FilterChange(Sender: TObject);
     procedure ScanTimerTick(Sender: TObject);
+    procedure ThumbnailTimerTick(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListDblClick(Sender: TObject);
   private
     FFiles: TList<TFileEntry>;
     FScanWorker: TFileScanWorker;
     FVisibleItems: TList<Integer>;
+    FThumbnailQueue: TList<Integer>;
+    FThumbnailQueuePosition: Integer;
+    FThumbnailIndexes: TDictionary<string, Integer>;
+    FRootFolder: string;
+    FThumbnailFolder: string;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
+    procedure QueueThumbnail(const AIndex: Integer);
+    procedure LoadOrCreateThumbnail(const AIndex: Integer);
     function FileSizeText(const ASize: Int64): string;
+    function ThumbnailFileName(const AFile: TFileEntry): string;
+    function HashText(const AValue: string): Cardinal;
+    procedure CreateThumbnail(const AFile: TFileEntry; const AOutput: string);
+    procedure CreateGenericThumbnail(const AFile: TFileEntry;
+      const AOutput: string);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -77,22 +98,24 @@ var
 implementation
 
 uses
-  System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl;
+  System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl, Vcl.Graphics,
+  Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 {$R *.dfm}
 
 var
   CurrentSort: Integer;
 
-constructor TFileScanWorker.Create(const ARootFolder: string);
+constructor TFileScanWorker.Create(const ARootFolder, AThumbnailFolder: string;
+  const AMediaOnly: Boolean);
 begin
   inherited Create(True);
   FreeOnTerminate := False;
   FRootFolder := ARootFolder;
+  FThumbnailFolder := AThumbnailFolder;
+  FMediaOnly := AMediaOnly;
   FItems := TList<TFileEntry>.Create;
   FLock := TCriticalSection.Create;
-  FReadPosition := 0;
-  FCompleted := False;
 end;
 
 destructor TFileScanWorker.Destroy;
@@ -102,12 +125,23 @@ begin
   inherited;
 end;
 
+function TFileScanWorker.IsIncludedFile(const AFileName: string): Boolean;
+var
+  Extension: string;
+begin
+  if not FMediaOnly then
+    Exit(True);
+  Extension := LowerCase(ExtractFileExt(AFileName));
+  Result := MatchText(Extension, ['.pdf', '.jpg', '.jpeg', '.png', '.bmp',
+    '.gif', '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.mp3', '.wav', '.flac']);
+end;
+
 procedure TFileScanWorker.AddFile(const AFileName: string;
   const ASearch: TSearchRec);
 var
   Item: TFileEntry;
 begin
-  if Terminated then
+  if Terminated or not IsIncludedFile(AFileName) then
     Exit;
   Item.FullName := AFileName;
   Item.DisplayName := ExtractFileName(AFileName);
@@ -141,7 +175,9 @@ begin
         Path := IncludeTrailingPathDelimiter(AFolder) + Search.Name;
         if (Search.Attr and faDirectory) <> 0 then
         begin
-          if (Search.Attr and FILE_ATTRIBUTE_REPARSE_POINT) = 0 then
+          if not SameText(ExcludeTrailingPathDelimiter(Path),
+            ExcludeTrailingPathDelimiter(FThumbnailFolder)) and
+            ((Search.Attr and FILE_ATTRIBUTE_REPARSE_POINT) = 0) then
             ScanFolder(Path);
         end
         else
@@ -218,20 +254,24 @@ begin
   inherited;
   FFiles := TList<TFileEntry>.Create;
   FVisibleItems := TList<Integer>.Create;
+  FThumbnailQueue := TList<Integer>.Create;
+  FThumbnailIndexes := TDictionary<string, Integer>.Create;
   FolderEdit.Text := TPath.GetDocumentsPath;
-  FileList.OwnerData := True;
 end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
   ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
+  ThumbnailTimer.Enabled := False;
   if Assigned(FScanWorker) then
   begin
     FScanWorker.Terminate;
     FScanWorker.WaitFor;
     FScanWorker.Free;
   end;
+  FThumbnailIndexes.Free;
+  FThumbnailQueue.Free;
   FVisibleItems.Free;
   FFiles.Free;
   inherited;
@@ -259,13 +299,22 @@ begin
     ShowMessage('Gecerli bir klasor secin.');
     Exit;
   end;
+  FRootFolder := ExcludeTrailingPathDelimiter(FolderEdit.Text);
+  FThumbnailFolder := TPath.Combine(FRootFolder, 'thumbnail');
+  ForceDirectories(FThumbnailFolder);
   ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
+  ThumbnailTimer.Enabled := False;
   FileList.Items.Count := 0;
   FFiles.Clear;
   FVisibleItems.Clear;
+  FThumbnailQueue.Clear;
+  FThumbnailQueuePosition := 0;
+  FThumbnailIndexes.Clear;
+  ThumbnailImages.Clear;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
-  FScanWorker := TFileScanWorker.Create(FolderEdit.Text);
+  FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
+    FilterBox.ItemIndex = 0);
   FScanWorker.Start;
   ScanTimer.Enabled := True;
 end;
@@ -287,11 +336,14 @@ begin
     while PreviousCount < FFiles.Count do
     begin
       AddVisibleFile(PreviousCount);
+      QueueThumbnail(PreviousCount);
       Inc(PreviousCount);
     end;
     FileList.Items.Count := FVisibleItems.Count;
   end;
   StatusLabel.Caption := Format('%d dosya tarandi...', [FFiles.Count]);
+  if FThumbnailQueuePosition < FThumbnailQueue.Count then
+    ThumbnailTimer.Enabled := True;
   if FScanWorker.IsCompleted then
   begin
     ScanTimer.Enabled := False;
@@ -333,9 +385,19 @@ begin
     FileList.ViewStyle := vsReport;
 end;
 
+procedure TFrmVisualFileManager.FilterChange(Sender: TObject);
+begin
+  StatusLabel.Caption := 'Filtre degisti. Dosyalari Tara ile yenileyin.';
+end;
+
 procedure TFrmVisualFileManager.AddVisibleFile(const AIndex: Integer);
 begin
   FVisibleItems.Add(AIndex);
+end;
+
+procedure TFrmVisualFileManager.QueueThumbnail(const AIndex: Integer);
+begin
+  FThumbnailQueue.Add(AIndex);
 end;
 
 procedure TFrmVisualFileManager.Render;
@@ -346,15 +408,22 @@ begin
   CurrentSort := SortBox.ItemIndex;
   FFiles.Sort(TComparer<TFileEntry>.Construct(CompareEntries));
   FVisibleItems.Clear;
+  FThumbnailQueue.Clear;
+  FThumbnailQueuePosition := 0;
   Query := Trim(SearchEdit.Text);
   for I := 0 to FFiles.Count - 1 do
+  begin
     if (Query = '') or ContainsText(FFiles[I].DisplayName, Query) then
       AddVisibleFile(I);
+    QueueThumbnail(I);
+  end;
+  FThumbnailQueuePosition := 0;
   FileList.Items.Count := FVisibleItems.Count;
   if FVisibleItems.Count = 0 then
     StatusLabel.Caption := 'Dosya bulunamadi.'
   else
     StatusLabel.Caption := Format('%d dosya bulundu.', [FVisibleItems.Count]);
+  ThumbnailTimer.Enabled := FThumbnailQueue.Count > 0;
 end;
 
 function TFrmVisualFileManager.FileSizeText(const ASize: Int64): string;
@@ -369,10 +438,161 @@ begin
     Result := IntToStr(ASize) + ' B';
 end;
 
+function TFrmVisualFileManager.HashText(const AValue: string): Cardinal;
+var
+  I: Integer;
+begin
+  Result := 2166136261;
+  for I := 1 to Length(AValue) do
+  begin
+    Result := Result xor Ord(AValue[I]);
+    Result := Result * 16777619;
+  end;
+end;
+
+function TFrmVisualFileManager.ThumbnailFileName(const AFile: TFileEntry): string;
+begin
+  Result := TPath.Combine(FThumbnailFolder, IntToHex(HashText(AFile.FullName +
+    '|' + IntToStr(AFile.Size) + '|' + IntToStr(Trunc(AFile.ModifiedAt * 86400000))),
+    8) + '.jpg');
+end;
+
+procedure TFrmVisualFileManager.CreateGenericThumbnail(const AFile: TFileEntry;
+  const AOutput: string);
+var
+  Bitmap: TBitmap;
+  Jpeg: TJPEGImage;
+  Text: string;
+begin
+  Bitmap := TBitmap.Create;
+  Jpeg := TJPEGImage.Create;
+  try
+    Bitmap.SetSize(160, 120);
+    Bitmap.Canvas.Brush.Color := $00E8EEF5;
+    Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
+    Bitmap.Canvas.Brush.Color := $006B7280;
+    Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, 10));
+    Text := UpperCase(Copy(AFile.Extension, 2, 8));
+    if Text = '' then
+      Text := 'DOSYA';
+    Bitmap.Canvas.Font.Color := $00405060;
+    Bitmap.Canvas.Font.Size := 18;
+    Bitmap.Canvas.Font.Style := [fsBold];
+    Bitmap.Canvas.TextOut(14, 42, Text);
+    Bitmap.Canvas.Font.Color := $006B7280;
+    Bitmap.Canvas.Font.Size := 8;
+    Bitmap.Canvas.Font.Style := [];
+    Bitmap.Canvas.TextOut(14, 78, Copy(AFile.DisplayName, 1, 24));
+    Jpeg.Assign(Bitmap);
+    Jpeg.CompressionQuality := 78;
+    Jpeg.Compress;
+    Jpeg.SaveToFile(AOutput);
+  finally
+    Jpeg.Free;
+    Bitmap.Free;
+  end;
+end;
+
+procedure TFrmVisualFileManager.CreateThumbnail(const AFile: TFileEntry;
+  const AOutput: string);
+var
+  Picture: TPicture;
+  Bitmap: TBitmap;
+  Jpeg: TJPEGImage;
+  Scale: Double;
+  Width, Height, LeftPos, TopPos: Integer;
+begin
+  if MatchText(AFile.Extension, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']) then
+  begin
+    Picture := TPicture.Create;
+    Bitmap := TBitmap.Create;
+    Jpeg := TJPEGImage.Create;
+    try
+      Picture.LoadFromFile(AFile.FullName);
+      if (Picture.Graphic.Width <= 0) or (Picture.Graphic.Height <= 0) then
+      begin
+        CreateGenericThumbnail(AFile, AOutput);
+        Exit;
+      end;
+      Bitmap.SetSize(160, 120);
+      Bitmap.Canvas.Brush.Color := clWhite;
+      Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
+      Scale := Min(Bitmap.Width / Picture.Graphic.Width,
+        Bitmap.Height / Picture.Graphic.Height);
+      Width := Round(Picture.Graphic.Width * Scale);
+      Height := Round(Picture.Graphic.Height * Scale);
+      LeftPos := (Bitmap.Width - Width) div 2;
+      TopPos := (Bitmap.Height - Height) div 2;
+      Bitmap.Canvas.StretchDraw(Rect(LeftPos, TopPos, LeftPos + Width,
+        TopPos + Height), Picture.Graphic);
+      Jpeg.Assign(Bitmap);
+      Jpeg.CompressionQuality := 78;
+      Jpeg.Compress;
+      Jpeg.SaveToFile(AOutput);
+    except
+      CreateGenericThumbnail(AFile, AOutput);
+    finally
+      Jpeg.Free;
+      Bitmap.Free;
+      Picture.Free;
+    end;
+  end
+  else
+    CreateGenericThumbnail(AFile, AOutput);
+end;
+
+procedure TFrmVisualFileManager.LoadOrCreateThumbnail(const AIndex: Integer);
+var
+  CacheFile: string;
+  Picture: TPicture;
+  Bitmap: TBitmap;
+  ImageIndex: Integer;
+begin
+  if (AIndex < 0) or (AIndex >= FFiles.Count) then
+    Exit;
+  if FThumbnailIndexes.ContainsKey(FFiles[AIndex].FullName) then
+    Exit;
+  CacheFile := ThumbnailFileName(FFiles[AIndex]);
+  if not FileExists(CacheFile) then
+    CreateThumbnail(FFiles[AIndex], CacheFile);
+  if not FileExists(CacheFile) then
+    Exit;
+  Picture := TPicture.Create;
+  Bitmap := TBitmap.Create;
+  try
+    Picture.LoadFromFile(CacheFile);
+    Bitmap.SetSize(160, 120);
+    Bitmap.Canvas.Brush.Color := clWhite;
+    Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
+    Bitmap.Canvas.StretchDraw(Rect(0, 0, Bitmap.Width, Bitmap.Height),
+      Picture.Graphic);
+    ImageIndex := ThumbnailImages.Add(Bitmap, nil);
+    FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
+  except
+  end;
+  Bitmap.Free;
+  Picture.Free;
+end;
+
+procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
+var
+  FileIndex: Integer;
+begin
+  ThumbnailTimer.Enabled := False;
+  if FThumbnailQueuePosition >= FThumbnailQueue.Count then
+    Exit;
+  FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
+  Inc(FThumbnailQueuePosition);
+  LoadOrCreateThumbnail(FileIndex);
+  FileList.Invalidate;
+  if FThumbnailQueuePosition < FThumbnailQueue.Count then
+    ThumbnailTimer.Enabled := True;
+end;
+
 procedure TFrmVisualFileManager.FileListData(Sender: TObject;
   Item: TListItem);
 var
-  FileIndex: Integer;
+  FileIndex, ImageIndex: Integer;
   FileEntry: TFileEntry;
 begin
   if (Item.Index < 0) or (Item.Index >= FVisibleItems.Count) then
@@ -385,6 +605,10 @@ begin
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
   Item.SubItems.Add(DateTimeToStr(FileEntry.ModifiedAt));
   Item.SubItems.Add(FileEntry.FullName);
+  if FThumbnailIndexes.TryGetValue(FileEntry.FullName, ImageIndex) then
+    Item.ImageIndex := ImageIndex
+  else
+    Item.ImageIndex := -1;
 end;
 
 procedure TFrmVisualFileManager.FileListDblClick(Sender: TObject);
