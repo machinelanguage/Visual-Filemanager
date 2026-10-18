@@ -17,11 +17,13 @@ type
     FThumbnailFolder: string;
     FThumbnailQueue: TList<Integer>;
     FThumbnailWorker: TThread;
+    FThumbnailImages: TDictionary<string, TImage>;
     FIndexWorker: TThread;
     FSearchWorker: TThread;
     FSearchMatches: TStringList;
     FSearchGeneration: Integer;
     FThumbnailLimit: Integer;
+    FListLimit: Integer;
     FUpdatingCategories: Boolean;
     FFlipPhase: Boolean;
     ToolPanel: TPanel;
@@ -302,10 +304,12 @@ begin
   inherited;
   FFiles := TList<TManagedFile>.Create;
   FThumbnailQueue := TList<Integer>.Create;
+  FThumbnailImages := TDictionary<string, TImage>.Create;
   FSearchMatches := TStringList.Create;
   FSearchMatches.Sorted := True;
   FSearchMatches.Duplicates := dupIgnore;
   FThumbnailLimit := 80;
+  FListLimit := 100;
   FCatalog := TTopicCatalog.Create;
   BuildUi;
   if DirectoryExists(FCatalog.LastFolder) then
@@ -339,6 +343,7 @@ begin
     FThumbnailWorker.Free;
   end;
   FThumbnailQueue.Free;
+  FThumbnailImages.Free;
   FSearchMatches.Free;
   FCatalog.Free;
   FFiles.Free;
@@ -524,6 +529,7 @@ begin
   FThumbnailQueue.Clear;
   FSearchMatches.Clear;
   FThumbnailLimit := 80;
+  FListLimit := 100;
   FThumbnailFolder := TPath.Combine(FolderEdit.Text, 'thumbnail');
   ForceDirectories(FThumbnailFolder);
   FRootFolder := FolderEdit.Text;
@@ -628,6 +634,7 @@ begin
   finally
     TopicTree.Items.EndUpdate;
   end;
+  FThumbnailImages.Clear;
   while Cards.ControlCount > 0 do Cards.Controls[0].Free;
   TopPos := 12;
   Column := 0;
@@ -644,7 +651,8 @@ begin
       ((Query = '') or (FSearchMatches.IndexOf(Item.FullName) >= 0)) then
     begin
       Inc(MatchCount);
-      if (ViewBox.ItemIndex = 1) and (ShownCount >= FThumbnailLimit) then
+      if ((ViewBox.ItemIndex = 1) and (ShownCount >= FThumbnailLimit)) or
+        ((ViewBox.ItemIndex = 0) and (ShownCount >= FListLimit)) then
         Continue;
       if ViewBox.ItemIndex = 1 then
       begin
@@ -666,8 +674,11 @@ begin
       Inc(ShownCount);
     end;
   end;
-  if (ViewBox.ItemIndex = 1) and (MatchCount > ShownCount) then
-    AddLoadMoreButton(12 + ((Row + 1) * 190), MatchCount - ShownCount);
+  if MatchCount > ShownCount then
+    if ViewBox.ItemIndex = 1 then
+      AddLoadMoreButton(12 + ((Row + 1) * 190), MatchCount - ShownCount)
+    else
+      AddLoadMoreButton(TopPos, MatchCount - ShownCount);
   StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
     [FFiles.Count, FCatalog.CatalogFileName]);
 end;
@@ -796,6 +807,7 @@ begin
   ThumbImage.Hint := 'ThumbnailImage';
   ThumbImage.OnClick := CardClick;
   ThumbImage.Visible := False;
+  FThumbnailImages.AddOrSetValue(AFile.FullName, ThumbImage);
   if FileExists(CacheFile) then
   begin
     try
@@ -901,32 +913,26 @@ end;
 procedure TFrmVisualFileManager.ShowThumbnail(const AIndex: Integer;
   const AFileName: string);
 var
-  I, J, K: Integer;
-  Card: TWinControl;
+  I: Integer;
+  Image: TImage;
   Control: TControl;
 begin
-  for I := 0 to Cards.ControlCount - 1 do
+  if (AIndex < 0) or (AIndex >= FFiles.Count) then
+    Exit;
+  if not FThumbnailImages.TryGetValue(FFiles[AIndex].FullName, Image) then
+    Exit;
+  try
+    Image.Picture.LoadFromFile(AFileName);
+    Image.Visible := True;
+  except
+    Image.Visible := False;
+    Exit;
+  end;
+  for I := 0 to Image.Parent.ControlCount - 1 do
   begin
-    Card := TWinControl(Cards.Controls[I]);
-    for J := 0 to Card.ControlCount - 1 do
-      if Card.Controls[J] is TPanel then
-        for K := 0 to TWinControl(Card.Controls[J]).ControlCount - 1 do
-        begin
-          Control := TWinControl(Card.Controls[J]).Controls[K];
-          if (Control is TImage) and (Control.Tag = AIndex) and
-            (Control.Hint = 'ThumbnailImage') then
-          begin
-            try
-              TImage(Control).Picture.LoadFromFile(AFileName);
-              TImage(Control).Visible := True;
-            except
-              TImage(Control).Visible := False;
-            end;
-          end
-          else if (Control is TLabel) and (Control.Tag = AIndex) and
-            (Control.Hint = 'ThumbnailType') then
-            TLabel(Control).Visible := False;
-        end;
+    Control := Image.Parent.Controls[I];
+    if (Control is TLabel) and (Control.Hint = 'ThumbnailType') then
+      TLabel(Control).Visible := False;
   end;
 end;
 
@@ -947,7 +953,7 @@ var
   Card: TWinControl;
   Control: TControl;
 begin
-  if ViewBox.ItemIndex = 1 then
+  if Assigned(FIndexWorker) or (ViewBox.ItemIndex = 1) then
     Exit;
   FFlipPhase := not FFlipPhase;
   for I := 0 to Cards.ControlCount - 1 do
@@ -1042,7 +1048,10 @@ end;
 
 procedure TFrmVisualFileManager.LoadMoreThumbnailsClick(Sender: TObject);
 begin
-  Inc(FThumbnailLimit, 80);
+  if ViewBox.ItemIndex = 1 then
+    Inc(FThumbnailLimit, 80)
+  else
+    Inc(FListLimit, 100);
   Render;
 end;
 
