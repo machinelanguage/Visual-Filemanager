@@ -17,6 +17,10 @@ type
     FThumbnailFolder: string;
     FThumbnailQueue: TList<Integer>;
     FThumbnailWorker: TThread;
+    FIndexWorker: TThread;
+    FSearchWorker: TThread;
+    FSearchMatches: TStringList;
+    FSearchGeneration: Integer;
     FThumbnailLimit: Integer;
     FUpdatingCategories: Boolean;
     FFlipPhase: Boolean;
@@ -30,10 +34,14 @@ type
     ViewBox: TComboBox;
     StatusLabel: TLabel;
     FlipTimer: TTimer;
+    SearchTimer: TTimer;
     procedure BuildUi;
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure SearchChange(Sender: TObject);
+    procedure SearchTimerTick(Sender: TObject);
+    procedure SearchWorkerDone(Sender: TObject);
+    procedure IndexWorkerDone(Sender: TObject);
     procedure SortChange(Sender: TObject);
     procedure CategoryChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
@@ -110,6 +118,180 @@ begin
     FSuccess := CreateThumbnailFile(FFileName, FTopic, FCacheFile);
 end;
 
+type
+  TIndexWorker = class(TThread)
+  private
+    FRootFolder: string;
+    FThumbnailFolder: string;
+    FItems: TList<TManagedFile>;
+    procedure AddFile(const AFileName: string; const ACatalog: TTopicCatalog);
+    procedure ScanFolder(const AFolder: string; const ACatalog: TTopicCatalog);
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(const ARootFolder, AThumbnailFolder: string);
+    destructor Destroy; override;
+    property Items: TList<TManagedFile> read FItems;
+  end;
+
+  TSearchWorker = class(TThread)
+  private
+    FFiles: TArray<TManagedFile>;
+    FQuery: string;
+    FGeneration: Integer;
+    FMatches: TStringList;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(const AFiles: TArray<TManagedFile>; const AQuery: string;
+      const AGeneration: Integer);
+    destructor Destroy; override;
+    property Generation: Integer read FGeneration;
+    property Matches: TStringList read FMatches;
+  end;
+
+constructor TIndexWorker.Create(const ARootFolder, AThumbnailFolder: string);
+begin
+  inherited Create(True);
+  FreeOnTerminate := False;
+  FRootFolder := ARootFolder;
+  FThumbnailFolder := AThumbnailFolder;
+  FItems := TList<TManagedFile>.Create;
+end;
+
+destructor TIndexWorker.Destroy;
+begin
+  FItems.Free;
+  inherited;
+end;
+
+procedure TIndexWorker.AddFile(const AFileName: string;
+  const ACatalog: TTopicCatalog);
+var
+  Item: TManagedFile;
+  Info: TWin32FileAttributeData;
+begin
+  if Terminated then
+    Exit;
+  Item.FullName := AFileName;
+  Item.DisplayName := ExtractFileName(AFileName);
+  Item.Extension := LowerCase(ExtractFileExt(AFileName));
+  if GetFileAttributesEx(PChar(AFileName), GetFileExInfoStandard, @Info) then
+  begin
+    Item.Size := (Int64(Info.nFileSizeHigh) shl 32) + Info.nFileSizeLow;
+    Item.ModifiedAt := FileDateToDateTime(FileAge(AFileName));
+  end
+  else
+  begin
+    Item.Size := 0;
+    Item.ModifiedAt := 0;
+  end;
+  if IsIndexable(AFileName) and not CanReadIndexableFile(AFileName) then
+  begin
+    Item.Preview := 'Icerik okunamadi: bulut dosyasi kullanilabilir degil.';
+    Item.Topic := 'Bulut Dosyasi Hazir Degil';
+    Item.Summary := 'Konu: ' + Item.Topic + sLineBreak +
+      'Ozet: Dosya bulut saglayicisindan indirilemedi.' + sLineBreak +
+      'Detay: Dosyayi cevrimdisi kullanilabilir yapin.';
+    Item.Confidence := 0;
+  end
+  else
+  begin
+    Item.Preview := ReadIndexableText(AFileName);
+    if not ACatalog.TryGetTopic(Item.FullName, Item.Size, Item.ModifiedAt,
+      Item.Topic, Item.Confidence) then
+    begin
+      Item.Topic := ClassifyFile(AFileName, Item.Preview, Item.Confidence);
+      ACatalog.SaveTopic(Item.FullName, Item.Size, Item.ModifiedAt, Item.Topic,
+        Item.Confidence);
+    end;
+    if Item.Extension = '.pdf' then
+      Item.Summary := BuildThreeLineSummary(Item.Topic, Item.Preview)
+    else
+      Item.Summary := Copy(Item.Preview, 1, 250);
+  end;
+  FItems.Add(Item);
+end;
+
+procedure TIndexWorker.ScanFolder(const AFolder: string;
+  const ACatalog: TTopicCatalog);
+var
+  Search: TSearchRec;
+  Path: string;
+begin
+  if Terminated then
+    Exit;
+  if FindFirst(IncludeTrailingPathDelimiter(AFolder) + '*', faAnyFile, Search) = 0 then
+  try
+    repeat
+      if Terminated then
+        Exit;
+      if (Search.Name <> '.') and (Search.Name <> '..') then
+      begin
+        Path := IncludeTrailingPathDelimiter(AFolder) + Search.Name;
+        if (Search.Attr and faDirectory) <> 0 then
+        begin
+          if not SameText(ExcludeTrailingPathDelimiter(Path),
+            ExcludeTrailingPathDelimiter(FThumbnailFolder)) and
+            ((Search.Attr and FILE_ATTRIBUTE_REPARSE_POINT) = 0) then
+            ScanFolder(Path, ACatalog);
+        end
+        else
+          AddFile(Path, ACatalog);
+      end;
+    until FindNext(Search) <> 0;
+  finally
+    FindClose(Search);
+  end;
+end;
+
+procedure TIndexWorker.Execute;
+var
+  Catalog: TTopicCatalog;
+begin
+  Catalog := TTopicCatalog.Create;
+  try
+    ScanFolder(FRootFolder, Catalog);
+    if not Terminated then
+      Catalog.Save;
+  finally
+    Catalog.Free;
+  end;
+end;
+
+constructor TSearchWorker.Create(const AFiles: TArray<TManagedFile>;
+  const AQuery: string; const AGeneration: Integer);
+begin
+  inherited Create(True);
+  FreeOnTerminate := False;
+  FFiles := Copy(AFiles);
+  FQuery := LowerCase(AQuery);
+  FGeneration := AGeneration;
+  FMatches := TStringList.Create;
+  FMatches.Sorted := True;
+  FMatches.Duplicates := dupIgnore;
+end;
+
+destructor TSearchWorker.Destroy;
+begin
+  FMatches.Free;
+  inherited;
+end;
+
+procedure TSearchWorker.Execute;
+var
+  I: Integer;
+begin
+  for I := 0 to High(FFiles) do
+  begin
+    if Terminated then
+      Exit;
+    if ContainsText(LowerCase(FFiles[I].DisplayName), FQuery) or
+      ContainsText(LowerCase(FFiles[I].Preview), FQuery) then
+      FMatches.Add(FFiles[I].FullName);
+  end;
+end;
+
 procedure CreateVisualFileManager;
 begin
   Application.CreateForm(TFrmVisualFileManager, FrmVisualFileManager);
@@ -120,6 +302,9 @@ begin
   inherited;
   FFiles := TList<TManagedFile>.Create;
   FThumbnailQueue := TList<Integer>.Create;
+  FSearchMatches := TStringList.Create;
+  FSearchMatches.Sorted := True;
+  FSearchMatches.Duplicates := dupIgnore;
   FThumbnailLimit := 80;
   FCatalog := TTopicCatalog.Create;
   BuildUi;
@@ -132,6 +317,20 @@ end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
+  if Assigned(FIndexWorker) then
+  begin
+    FIndexWorker.OnTerminate := nil;
+    FIndexWorker.Terminate;
+    FIndexWorker.WaitFor;
+    FIndexWorker.Free;
+  end;
+  if Assigned(FSearchWorker) then
+  begin
+    FSearchWorker.OnTerminate := nil;
+    FSearchWorker.Terminate;
+    FSearchWorker.WaitFor;
+    FSearchWorker.Free;
+  end;
   if Assigned(FThumbnailWorker) then
   begin
     FThumbnailWorker.OnTerminate := nil;
@@ -140,6 +339,7 @@ begin
     FThumbnailWorker.Free;
   end;
   FThumbnailQueue.Free;
+  FSearchMatches.Free;
   FCatalog.Free;
   FFiles.Free;
   inherited;
@@ -178,6 +378,9 @@ begin
   SearchEdit.SetBounds(16, 46, 350, 23);
   SearchEdit.TextHint := 'Dosya veya i'#231'erikte ara...';
   SearchEdit.OnChange := SearchChange;
+  SearchTimer := TTimer.Create(Self);
+  SearchTimer.Interval := 300;
+  SearchTimer.OnTimer := SearchTimerTick;
   SortBox := TComboBox.Create(Self);
   SortBox.Parent := ToolPanel;
   SortBox.SetBounds(376, 46, 174, 23);
@@ -307,26 +510,47 @@ end;
 
 procedure TFrmVisualFileManager.ScanClick(Sender: TObject);
 begin
+  if Assigned(FIndexWorker) then
+  begin
+    StatusLabel.Caption := 'Tarama zaten arka planda devam ediyor.';
+    Exit;
+  end;
   if not DirectoryExists(FolderEdit.Text) then
   begin
     ShowMessage('Ge'#231'erli bir klas'#246'r se'#231'in.');
     Exit;
   end;
-  Screen.Cursor := crHourGlass;
-  try
-    FFiles.Clear;
-    FThumbnailQueue.Clear;
-    FThumbnailLimit := 80;
-    FThumbnailFolder := TPath.Combine(FolderEdit.Text, 'thumbnail');
-    ForceDirectories(FThumbnailFolder);
-    FRootFolder := FolderEdit.Text;
-    FCatalog.SetLastFolder(FRootFolder);
-    ScanFolder(FRootFolder);
-    FCatalog.Save;
-    Render;
-  finally
-    Screen.Cursor := crDefault;
-  end;
+  FFiles.Clear;
+  FThumbnailQueue.Clear;
+  FSearchMatches.Clear;
+  FThumbnailLimit := 80;
+  FThumbnailFolder := TPath.Combine(FolderEdit.Text, 'thumbnail');
+  ForceDirectories(FThumbnailFolder);
+  FRootFolder := FolderEdit.Text;
+  FCatalog.SetLastFolder(FRootFolder);
+  FCatalog.Save;
+  while Cards.ControlCount > 0 do
+    Cards.Controls[0].Free;
+  TopicTree.Items.Clear;
+  StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
+  FIndexWorker := TIndexWorker.Create(FRootFolder, FThumbnailFolder);
+  FIndexWorker.OnTerminate := IndexWorkerDone;
+  FIndexWorker.Start;
+end;
+
+procedure TFrmVisualFileManager.IndexWorkerDone(Sender: TObject);
+var
+  Worker: TIndexWorker;
+  I: Integer;
+begin
+  Worker := TIndexWorker(Sender);
+  FIndexWorker := nil;
+  for I := 0 to Worker.Items.Count - 1 do
+    FFiles.Add(Worker.Items[I]);
+  FCatalog.Reload;
+  StatusLabel.Hint := 'Katalog: ' + FCatalog.CatalogFileName;
+  Render;
+  Worker.Free;
 end;
 
 procedure TFrmVisualFileManager.UpdateCategoryBox;
@@ -411,14 +635,13 @@ begin
   MatchCount := 0;
   ShownCount := 0;
   ColumnCount := Max(1, (Cards.ClientWidth - 28) div 206);
-  Query := LowerCase(Trim(SearchEdit.Text));
+  Query := Trim(SearchEdit.Text);
   TopicFilter := CategoryBox.Text;
   for I := 0 to FFiles.Count - 1 do
   begin
     Item := FFiles[I];
     if ((CategoryBox.ItemIndex = 0) or SameText(Item.Topic, TopicFilter)) and
-      ((Query = '') or ContainsText(LowerCase(Item.DisplayName), Query) or
-      ContainsText(LowerCase(Item.Preview), Query)) then
+      ((Query = '') or (FSearchMatches.IndexOf(Item.FullName) >= 0)) then
     begin
       Inc(MatchCount);
       if (ViewBox.ItemIndex = 1) and (ShownCount >= FThumbnailLimit) then
@@ -748,7 +971,55 @@ end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);
 begin
-  Render;
+  Inc(FSearchGeneration);
+  SearchTimer.Enabled := False;
+  SearchTimer.Enabled := True;
+end;
+
+procedure TFrmVisualFileManager.SearchTimerTick(Sender: TObject);
+var
+  Snapshot: TArray<TManagedFile>;
+  I: Integer;
+  Query: string;
+begin
+  SearchTimer.Enabled := False;
+  if Assigned(FIndexWorker) then
+  begin
+    SearchTimer.Enabled := True;
+    Exit;
+  end;
+  if Assigned(FSearchWorker) then
+    Exit;
+  Query := Trim(SearchEdit.Text);
+  if Query = '' then
+  begin
+    FSearchMatches.Clear;
+    Render;
+    Exit;
+  end;
+  SetLength(Snapshot, FFiles.Count);
+  for I := 0 to FFiles.Count - 1 do
+    Snapshot[I] := FFiles[I];
+  StatusLabel.Caption := 'Arama arka planda yapiliyor...';
+  FSearchWorker := TSearchWorker.Create(Snapshot, Query, FSearchGeneration);
+  FSearchWorker.OnTerminate := SearchWorkerDone;
+  FSearchWorker.Start;
+end;
+
+procedure TFrmVisualFileManager.SearchWorkerDone(Sender: TObject);
+var
+  Worker: TSearchWorker;
+begin
+  Worker := TSearchWorker(Sender);
+  FSearchWorker := nil;
+  if Worker.Generation = FSearchGeneration then
+  begin
+    FSearchMatches.Assign(Worker.Matches);
+    Render;
+  end
+  else if Worker.Generation <> FSearchGeneration then
+    SearchTimer.Enabled := True;
+  Worker.Free;
 end;
 
 procedure TFrmVisualFileManager.SortChange(Sender: TObject);

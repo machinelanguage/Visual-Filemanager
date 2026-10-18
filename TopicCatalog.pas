@@ -26,6 +26,7 @@ type
     function LastFolder: string;
     procedure SetLastFolder(const AFolder: string);
     procedure Save;
+    procedure Reload;
     property CatalogFileName: string read FFileName;
   end;
 
@@ -150,6 +151,16 @@ procedure TTopicCatalog.Save;
 begin
   if Assigned(FIni) then
     FIni.UpdateFile;
+end;
+
+procedure TTopicCatalog.Reload;
+var
+  FileName: string;
+begin
+  FileName := FFileName;
+  FIni.Free;
+  FIni := nil;
+  OpenCatalog(FileName);
 end;
 
 end.
