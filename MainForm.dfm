@@ -121,10 +121,12 @@ object FrmVisualFileManager: TFrmVisualFileManager
         Caption = 'Tam yol'
         Width = 480
       end>
+    OwnerData = True
     ReadOnly = True
     RowSelect = True
     TabOrder = 1
     ViewStyle = vsReport
+    OnData = FileListData
     OnDblClick = FileListDblClick
   end
   object SearchTimer: TTimer
@@ -134,10 +136,10 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Left = 1040
     Top = 16
   end
-  object RenderTimer: TTimer
+  object ScanTimer: TTimer
     Enabled = False
-    Interval = 15
-    OnTimer = RenderTimerTick
+    Interval = 60
+    OnTimer = ScanTimerTick
     Left = 1080
     Top = 16
   end
