@@ -14,6 +14,9 @@ type
     FFiles: TList<TManagedFile>;
     FCatalog: TTopicCatalog;
     FRootFolder: string;
+    FThumbnailFolder: string;
+    FThumbnailQueue: TList<Integer>;
+    FThumbnailWorker: TThread;
     FUpdatingCategories: Boolean;
     FFlipPhase: Boolean;
     ToolPanel: TPanel;
@@ -33,6 +36,10 @@ type
     procedure SortChange(Sender: TObject);
     procedure CategoryChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
+    procedure QueueThumbnail(const AIndex: Integer);
+    procedure StartNextThumbnail;
+    procedure ThumbnailWorkerDone(Sender: TObject);
+    procedure ShowThumbnail(const AIndex: Integer; const AFileName: string);
     procedure CardClick(Sender: TObject);
     procedure FlipTimerTick(Sender: TObject);
     procedure ScanFolder(const AFolder: string);
@@ -57,12 +64,48 @@ var
 implementation
 
 uses
-  System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl;
+  System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl, ThumbnailSupport;
 
 {$R *.dfm}
 
 var
   CurrentSort: Integer;
+
+type
+  TThumbnailWorker = class(TThread)
+  private
+    FIndex: Integer;
+    FFileName: string;
+    FTopic: string;
+    FCacheFile: string;
+    FSuccess: Boolean;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(const AIndex: Integer; const AFileName, ATopic,
+      ACacheFile: string);
+    property Index: Integer read FIndex;
+    property FileName: string read FFileName;
+    property CacheFile: string read FCacheFile;
+    property Success: Boolean read FSuccess;
+  end;
+
+constructor TThumbnailWorker.Create(const AIndex: Integer; const AFileName,
+  ATopic, ACacheFile: string);
+begin
+  inherited Create(True);
+  FreeOnTerminate := False;
+  FIndex := AIndex;
+  FFileName := AFileName;
+  FTopic := ATopic;
+  FCacheFile := ACacheFile;
+end;
+
+procedure TThumbnailWorker.Execute;
+begin
+  if not Terminated then
+    FSuccess := CreateThumbnailFile(FFileName, FTopic, FCacheFile);
+end;
 
 procedure CreateVisualFileManager;
 begin
@@ -73,6 +116,7 @@ constructor TFrmVisualFileManager.Create(AOwner: TComponent);
 begin
   inherited;
   FFiles := TList<TManagedFile>.Create;
+  FThumbnailQueue := TList<Integer>.Create;
   FCatalog := TTopicCatalog.Create;
   BuildUi;
   if DirectoryExists(FCatalog.LastFolder) then
@@ -84,6 +128,14 @@ end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
+  if Assigned(FThumbnailWorker) then
+  begin
+    FThumbnailWorker.OnTerminate := nil;
+    FThumbnailWorker.Terminate;
+    FThumbnailWorker.WaitFor;
+    FThumbnailWorker.Free;
+  end;
+  FThumbnailQueue.Free;
   FCatalog.Free;
   FFiles.Free;
   inherited;
@@ -234,6 +286,9 @@ begin
         Path := IncludeTrailingPathDelimiter(AFolder) + Search.Name;
         if (Search.Attr and faDirectory) <> 0 then
         begin
+          if SameText(ExcludeTrailingPathDelimiter(Path),
+            ExcludeTrailingPathDelimiter(FThumbnailFolder)) then
+            Continue;
           if (Search.Attr and FILE_ATTRIBUTE_REPARSE_POINT) = 0 then
             ScanFolder(Path);
         end
@@ -256,6 +311,9 @@ begin
   Screen.Cursor := crHourGlass;
   try
     FFiles.Clear;
+    FThumbnailQueue.Clear;
+    FThumbnailFolder := TPath.Combine(FolderEdit.Text, 'thumbnail');
+    ForceDirectories(FThumbnailFolder);
     FRootFolder := FolderEdit.Text;
     FCatalog.SetLastFolder(FRootFolder);
     ScanFolder(FRootFolder);
@@ -456,6 +514,8 @@ procedure TFrmVisualFileManager.AddThumbnail(const AFile: TManagedFile;
 var
   Card, Badge, PreviewBox: TPanel;
   TypeLabel, NameLabel, TopicLabel, SummaryLabel: TLabel;
+  ThumbImage: TImage;
+  CacheFile: string;
 begin
   Card := TPanel.Create(Self);
   Card.Parent := Cards;
@@ -487,7 +547,31 @@ begin
   TypeLabel.Font.Size := 16;
   TypeLabel.Caption := UpperCase(Copy(AFile.Extension, 2, 8));
   TypeLabel.Tag := AIndex;
+  TypeLabel.Hint := 'ThumbnailType';
   TypeLabel.OnClick := CardClick;
+  CacheFile := ThumbnailCacheFileName(FThumbnailFolder, AFile.FullName,
+    AFile.Size, AFile.ModifiedAt);
+  ThumbImage := TImage.Create(Self);
+  ThumbImage.Parent := PreviewBox;
+  ThumbImage.Align := alClient;
+  ThumbImage.Stretch := True;
+  ThumbImage.Proportional := True;
+  ThumbImage.Tag := AIndex;
+  ThumbImage.Hint := 'ThumbnailImage';
+  ThumbImage.OnClick := CardClick;
+  ThumbImage.Visible := False;
+  if FileExists(CacheFile) then
+  begin
+    try
+      ThumbImage.Picture.LoadFromFile(CacheFile);
+      ThumbImage.Visible := True;
+      TypeLabel.Visible := False;
+    except
+      QueueThumbnail(AIndex);
+    end;
+  end
+  else
+    QueueThumbnail(AIndex);
   NameLabel := TLabel.Create(Self);
   NameLabel.Parent := Card;
   NameLabel.SetBounds(12, 90, 166, 32);
@@ -514,6 +598,88 @@ begin
     [rfReplaceAll]), 1, 74);
   SummaryLabel.Tag := AIndex;
   SummaryLabel.OnClick := CardClick;
+end;
+
+procedure TFrmVisualFileManager.QueueThumbnail(const AIndex: Integer);
+begin
+  if (AIndex < 0) or (AIndex >= FFiles.Count) then
+    Exit;
+  if FThumbnailQueue.IndexOf(AIndex) < 0 then
+    FThumbnailQueue.Add(AIndex);
+  StartNextThumbnail;
+end;
+
+procedure TFrmVisualFileManager.StartNextThumbnail;
+var
+  Index: Integer;
+  CacheFile: string;
+begin
+  if Assigned(FThumbnailWorker) or (FThumbnailQueue.Count = 0) then
+    Exit;
+  Index := FThumbnailQueue[0];
+  FThumbnailQueue.Delete(0);
+  if (Index < 0) or (Index >= FFiles.Count) then
+  begin
+    StartNextThumbnail;
+    Exit;
+  end;
+  CacheFile := ThumbnailCacheFileName(FThumbnailFolder, FFiles[Index].FullName,
+    FFiles[Index].Size, FFiles[Index].ModifiedAt);
+  if FileExists(CacheFile) then
+  begin
+    ShowThumbnail(Index, CacheFile);
+    StartNextThumbnail;
+    Exit;
+  end;
+  FThumbnailWorker := TThumbnailWorker.Create(Index, FFiles[Index].FullName,
+    FFiles[Index].Topic, CacheFile);
+  FThumbnailWorker.OnTerminate := ThumbnailWorkerDone;
+  FThumbnailWorker.Start;
+end;
+
+procedure TFrmVisualFileManager.ThumbnailWorkerDone(Sender: TObject);
+var
+  Worker: TThumbnailWorker;
+begin
+  Worker := TThumbnailWorker(Sender);
+  FThumbnailWorker := nil;
+  if Worker.Success and (Worker.Index >= 0) and (Worker.Index < FFiles.Count) and
+    SameText(FFiles[Worker.Index].FullName, Worker.FileName) then
+    ShowThumbnail(Worker.Index, Worker.CacheFile);
+  Worker.Free;
+  StartNextThumbnail;
+end;
+
+procedure TFrmVisualFileManager.ShowThumbnail(const AIndex: Integer;
+  const AFileName: string);
+var
+  I, J, K: Integer;
+  Card: TWinControl;
+  Control: TControl;
+begin
+  for I := 0 to Cards.ControlCount - 1 do
+  begin
+    Card := TWinControl(Cards.Controls[I]);
+    for J := 0 to Card.ControlCount - 1 do
+      if Card.Controls[J] is TPanel then
+        for K := 0 to TWinControl(Card.Controls[J]).ControlCount - 1 do
+        begin
+          Control := TWinControl(Card.Controls[J]).Controls[K];
+          if (Control is TImage) and (Control.Tag = AIndex) and
+            (Control.Hint = 'ThumbnailImage') then
+          begin
+            try
+              TImage(Control).Picture.LoadFromFile(AFileName);
+              TImage(Control).Visible := True;
+            except
+              TImage(Control).Visible := False;
+            end;
+          end
+          else if (Control is TLabel) and (Control.Tag = AIndex) and
+            (Control.Hint = 'ThumbnailType') then
+            TLabel(Control).Visible := False;
+        end;
+  end;
 end;
 
 procedure TFrmVisualFileManager.CardClick(Sender: TObject);

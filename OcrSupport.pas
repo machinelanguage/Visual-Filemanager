@@ -3,6 +3,7 @@ unit OcrSupport;
 interface
 
 function TryOcrPdfPages(const AFileName: string; out AText: string): Boolean;
+function RenderPdfThumbnail(const AFileName, AOutputPng: string): Boolean;
 
 implementation
 
@@ -132,6 +133,23 @@ begin
       if FileExists(TextFiles[I]) then
         TFile.Delete(TextFiles[I]);
   end;
+end;
+
+function RenderPdfThumbnail(const AFileName, AOutputPng: string): Boolean;
+var
+  Pdftoppm, OutputBase, CommandLine: string;
+begin
+  Result := False;
+  Pdftoppm := FindPdftoppm;
+  if Pdftoppm = '' then
+    Exit;
+  ForceDirectories(ExtractFilePath(AOutputPng));
+  OutputBase := ChangeFileExt(AOutputPng, '');
+  CommandLine := QuoteArg(Pdftoppm) +
+    ' -f 1 -l 1 -scale-to-x 220 -scale-to-y 140 -singlefile -png ' +
+    QuoteArg(AFileName) + ' ' + QuoteArg(OutputBase);
+  Result := RunHidden(CommandLine, ExtractFilePath(AOutputPng)) and
+    FileExists(AOutputPng);
 end;
 
 end.
