@@ -17,6 +17,7 @@ type
     FThumbnailFolder: string;
     FThumbnailQueue: TList<Integer>;
     FThumbnailWorker: TThread;
+    FThumbnailLimit: Integer;
     FUpdatingCategories: Boolean;
     FFlipPhase: Boolean;
     ToolPanel: TPanel;
@@ -36,6 +37,7 @@ type
     procedure SortChange(Sender: TObject);
     procedure CategoryChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
+    procedure LoadMoreThumbnailsClick(Sender: TObject);
     procedure QueueThumbnail(const AIndex: Integer);
     procedure StartNextThumbnail;
     procedure ThumbnailWorkerDone(Sender: TObject);
@@ -48,6 +50,7 @@ type
     procedure AddCard(const AFile: TManagedFile; const AIndex, ATop: Integer);
     procedure AddThumbnail(const AFile: TManagedFile; const AIndex, ALeft,
       ATop: Integer);
+    procedure AddLoadMoreButton(const ATop, ARemaining: Integer);
     procedure UpdateCategoryBox;
     function TopicColor(const ATopic: string): TColor;
     function AlternateTopicColor(const ATopic: string): TColor;
@@ -117,6 +120,7 @@ begin
   inherited;
   FFiles := TList<TManagedFile>.Create;
   FThumbnailQueue := TList<Integer>.Create;
+  FThumbnailLimit := 80;
   FCatalog := TTopicCatalog.Create;
   BuildUi;
   if DirectoryExists(FCatalog.LastFolder) then
@@ -312,6 +316,7 @@ begin
   try
     FFiles.Clear;
     FThumbnailQueue.Clear;
+    FThumbnailLimit := 80;
     FThumbnailFolder := TPath.Combine(FolderEdit.Text, 'thumbnail');
     ForceDirectories(FThumbnailFolder);
     FRootFolder := FolderEdit.Text;
@@ -377,7 +382,7 @@ end;
 
 procedure TFrmVisualFileManager.Render;
 var
-  I, TopPos, LeftPos, Column, Row, ColumnCount: Integer;
+  I, TopPos, LeftPos, Column, Row, ColumnCount, MatchCount, ShownCount: Integer;
   Node: TTreeNode;
   Item: TManagedFile;
   Query, TopicFilter: string;
@@ -403,6 +408,8 @@ begin
   TopPos := 12;
   Column := 0;
   Row := 0;
+  MatchCount := 0;
+  ShownCount := 0;
   ColumnCount := Max(1, (Cards.ClientWidth - 28) div 206);
   Query := LowerCase(Trim(SearchEdit.Text));
   TopicFilter := CategoryBox.Text;
@@ -413,6 +420,9 @@ begin
       ((Query = '') or ContainsText(LowerCase(Item.DisplayName), Query) or
       ContainsText(LowerCase(Item.Preview), Query)) then
     begin
+      Inc(MatchCount);
+      if (ViewBox.ItemIndex = 1) and (ShownCount >= FThumbnailLimit) then
+        Continue;
       if ViewBox.ItemIndex = 1 then
       begin
         LeftPos := 14 + (Column * 206);
@@ -430,8 +440,11 @@ begin
         AddCard(Item, I, TopPos);
         Inc(TopPos, 132);
       end;
+      Inc(ShownCount);
     end;
   end;
+  if (ViewBox.ItemIndex = 1) and (MatchCount > ShownCount) then
+    AddLoadMoreButton(12 + ((Row + 1) * 190), MatchCount - ShownCount);
   StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
     [FFiles.Count, FCatalog.CatalogFileName]);
 end;
@@ -600,6 +613,18 @@ begin
   SummaryLabel.OnClick := CardClick;
 end;
 
+procedure TFrmVisualFileManager.AddLoadMoreButton(const ATop,
+  ARemaining: Integer);
+var
+  Button: TButton;
+begin
+  Button := TButton.Create(Self);
+  Button.Parent := Cards;
+  Button.SetBounds(14, ATop, 190, 30);
+  Button.Caption := IntToStr(ARemaining) + ' dosya daha yukle';
+  Button.OnClick := LoadMoreThumbnailsClick;
+end;
+
 procedure TFrmVisualFileManager.QueueThumbnail(const AIndex: Integer);
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
@@ -699,6 +724,8 @@ var
   Card: TWinControl;
   Control: TControl;
 begin
+  if ViewBox.ItemIndex = 1 then
+    Exit;
   FFlipPhase := not FFlipPhase;
   for I := 0 to Cards.ControlCount - 1 do
   begin
@@ -737,6 +764,14 @@ end;
 
 procedure TFrmVisualFileManager.ViewChange(Sender: TObject);
 begin
+  if ViewBox.ItemIndex = 1 then
+    FThumbnailLimit := 80;
+  Render;
+end;
+
+procedure TFrmVisualFileManager.LoadMoreThumbnailsClick(Sender: TObject);
+begin
+  Inc(FThumbnailLimit, 80);
   Render;
 end;
 

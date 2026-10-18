@@ -27,7 +27,23 @@ function ThumbnailCacheFileName(const AFolder, AFileName: string;
   const ASize: Int64; const AModifiedAt: TDateTime): string;
 begin
   Result := TPath.Combine(AFolder, IntToHex(HashText(AFileName + '|' +
-    IntToStr(ASize) + '|' + IntToStr(Trunc(AModifiedAt * 86400000))), 8) + '.bmp');
+    IntToStr(ASize) + '|' + IntToStr(Trunc(AModifiedAt * 86400000))), 8) + '.jpg');
+end;
+
+procedure SaveCompressedJpeg(const ABitmap: TBitmap; const AOutputFile: string);
+var
+  Jpeg: TJPEGImage;
+begin
+  Jpeg := TJPEGImage.Create;
+  try
+    Jpeg.Assign(ABitmap);
+    Jpeg.CompressionQuality := 75;
+    Jpeg.Compress;
+    ForceDirectories(ExtractFilePath(AOutputFile));
+    Jpeg.SaveToFile(AOutputFile);
+  finally
+    Jpeg.Free;
+  end;
 end;
 
 procedure SaveGenericThumbnail(const AFileName, ATopic, AOutputFile: string);
@@ -42,7 +58,7 @@ begin
     B.Canvas.Font.Color := clWhite; B.Canvas.Font.Size := 20; B.Canvas.Font.Style := [fsBold];
     B.Canvas.TextOut(16, 38, Ext); B.Canvas.Font.Color := $00405060; B.Canvas.Font.Size := 10;
     B.Canvas.Font.Style := []; B.Canvas.TextOut(16, 82, Copy(ATopic, 1, 26));
-    ForceDirectories(ExtractFilePath(AOutputFile)); B.SaveToFile(AOutputFile);
+    SaveCompressedJpeg(B, AOutputFile);
   finally B.Free; end;
 end;
 
@@ -57,7 +73,7 @@ begin
     W := Round(P.Graphic.Width * Scale); H := Round(P.Graphic.Height * Scale);
     L := (B.Width - W) div 2; T := (B.Height - H) div 2;
     B.Canvas.StretchDraw(Rect(L, T, L + W, T + H), P.Graphic);
-    ForceDirectories(ExtractFilePath(AOutputFile)); B.SaveToFile(AOutputFile);
+    SaveCompressedJpeg(B, AOutputFile);
   finally B.Free; P.Free; end;
 end;
 
