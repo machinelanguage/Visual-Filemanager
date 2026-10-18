@@ -4,7 +4,8 @@ interface
 
 uses
   Winapi.Windows, Winapi.ShellAPI, System.SysUtils, System.Classes,
-  System.Generics.Collections, System.Generics.Defaults, Vcl.Controls,
+  System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
+  Vcl.Controls,
   Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Dialogs;
 
 type
@@ -20,6 +21,7 @@ type
   private
     FRootFolder: string;
     FItems: TList<TFileEntry>;
+    FLock: TCriticalSection;
     FReadPosition: Integer;
     FCompleted: Boolean;
     procedure ScanFolder(const AFolder: string);
@@ -88,12 +90,14 @@ begin
   FreeOnTerminate := False;
   FRootFolder := ARootFolder;
   FItems := TList<TFileEntry>.Create;
+  FLock := TCriticalSection.Create;
   FReadPosition := 0;
   FCompleted := False;
 end;
 
 destructor TFileScanWorker.Destroy;
 begin
+  FLock.Free;
   FItems.Free;
   inherited;
 end;
@@ -110,11 +114,11 @@ begin
   Item.Extension := LowerCase(ExtractFileExt(AFileName));
   Item.Size := Int64(ASearch.Size);
   Item.ModifiedAt := FileDateToDateTime(ASearch.Time);
-  TMonitor.Enter(FItems);
+  FLock.Acquire;
   try
     FItems.Add(Item);
   finally
-    TMonitor.Exit(FItems);
+    FLock.Release;
   end;
 end;
 
@@ -154,11 +158,11 @@ begin
   try
     ScanFolder(FRootFolder);
   finally
-    TMonitor.Enter(FItems);
+    FLock.Acquire;
     try
       FCompleted := True;
     finally
-      TMonitor.Exit(FItems);
+      FLock.Release;
     end;
   end;
 end;
@@ -169,7 +173,7 @@ var
   I, Available: Integer;
 begin
   Result := 0;
-  TMonitor.Enter(FItems);
+  FLock.Acquire;
   try
     Available := FItems.Count - FReadPosition;
     Result := Min(AMaximum, Available);
@@ -177,17 +181,17 @@ begin
       ADestination.Add(FItems[FReadPosition + I]);
     Inc(FReadPosition, Result);
   finally
-    TMonitor.Exit(FItems);
+    FLock.Release;
   end;
 end;
 
 function TFileScanWorker.IsCompleted: Boolean;
 begin
-  TMonitor.Enter(FItems);
+  FLock.Acquire;
   try
     Result := FCompleted and (FReadPosition = FItems.Count);
   finally
-    TMonitor.Exit(FItems);
+    FLock.Release;
   end;
 end;
 
