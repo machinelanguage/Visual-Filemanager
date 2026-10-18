@@ -508,29 +508,31 @@ begin
     Bitmap := TBitmap.Create;
     Jpeg := TJPEGImage.Create;
     try
-      Picture.LoadFromFile(AFile.FullName);
-      if (Picture.Graphic.Width <= 0) or (Picture.Graphic.Height <= 0) then
-      begin
+      try
+        Picture.LoadFromFile(AFile.FullName);
+        if (Picture.Graphic.Width <= 0) or (Picture.Graphic.Height <= 0) then
+        begin
+          CreateGenericThumbnail(AFile, AOutput);
+          Exit;
+        end;
+        Bitmap.SetSize(160, 120);
+        Bitmap.Canvas.Brush.Color := clWhite;
+        Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
+        Scale := Min(Bitmap.Width / Picture.Graphic.Width,
+          Bitmap.Height / Picture.Graphic.Height);
+        Width := Round(Picture.Graphic.Width * Scale);
+        Height := Round(Picture.Graphic.Height * Scale);
+        LeftPos := (Bitmap.Width - Width) div 2;
+        TopPos := (Bitmap.Height - Height) div 2;
+        Bitmap.Canvas.StretchDraw(Rect(LeftPos, TopPos, LeftPos + Width,
+          TopPos + Height), Picture.Graphic);
+        Jpeg.Assign(Bitmap);
+        Jpeg.CompressionQuality := 78;
+        Jpeg.Compress;
+        Jpeg.SaveToFile(AOutput);
+      except
         CreateGenericThumbnail(AFile, AOutput);
-        Exit;
       end;
-      Bitmap.SetSize(160, 120);
-      Bitmap.Canvas.Brush.Color := clWhite;
-      Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
-      Scale := Min(Bitmap.Width / Picture.Graphic.Width,
-        Bitmap.Height / Picture.Graphic.Height);
-      Width := Round(Picture.Graphic.Width * Scale);
-      Height := Round(Picture.Graphic.Height * Scale);
-      LeftPos := (Bitmap.Width - Width) div 2;
-      TopPos := (Bitmap.Height - Height) div 2;
-      Bitmap.Canvas.StretchDraw(Rect(LeftPos, TopPos, LeftPos + Width,
-        TopPos + Height), Picture.Graphic);
-      Jpeg.Assign(Bitmap);
-      Jpeg.CompressionQuality := 78;
-      Jpeg.Compress;
-      Jpeg.SaveToFile(AOutput);
-    except
-      CreateGenericThumbnail(AFile, AOutput);
     finally
       Jpeg.Free;
       Bitmap.Free;
