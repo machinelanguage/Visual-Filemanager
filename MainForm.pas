@@ -23,6 +23,7 @@ type
     SearchEdit: TEdit;
     SortBox: TComboBox;
     CategoryBox: TComboBox;
+    ViewBox: TComboBox;
     StatusLabel: TLabel;
     FlipTimer: TTimer;
     procedure BuildUi;
@@ -31,12 +32,15 @@ type
     procedure SearchChange(Sender: TObject);
     procedure SortChange(Sender: TObject);
     procedure CategoryChange(Sender: TObject);
+    procedure ViewChange(Sender: TObject);
     procedure CardClick(Sender: TObject);
     procedure FlipTimerTick(Sender: TObject);
     procedure ScanFolder(const AFolder: string);
     procedure AddFile(const AFileName: string);
     procedure Render;
     procedure AddCard(const AFile: TManagedFile; const AIndex, ATop: Integer);
+    procedure AddThumbnail(const AFile: TManagedFile; const AIndex, ALeft,
+      ATop: Integer);
     procedure UpdateCategoryBox;
     function TopicColor(const ATopic: string): TColor;
     function AlternateTopicColor(const ATopic: string): TColor;
@@ -135,9 +139,17 @@ begin
   CategoryBox.OnChange := CategoryChange;
   CategoryBox.Items.Add('T'#252'm Kategoriler');
   CategoryBox.ItemIndex := 0;
+  ViewBox := TComboBox.Create(Self);
+  ViewBox.Parent := ToolPanel;
+  ViewBox.SetBounds(760, 46, 130, 23);
+  ViewBox.Style := csDropDownList;
+  ViewBox.Items.Add('Liste');
+  ViewBox.Items.Add('Kucuk resimler');
+  ViewBox.ItemIndex := 0;
+  ViewBox.OnChange := ViewChange;
   StatusLabel := TLabel.Create(Self);
   StatusLabel.Parent := ToolPanel;
-  StatusLabel.SetBounds(765, 49, 410, 18);
+  StatusLabel.SetBounds(900, 49, 280, 18);
   StatusLabel.ShowHint := True;
   StatusLabel.Hint := 'Katalog: ' + FCatalog.CatalogFileName;
   StatusLabel.Caption := 'Bir klas'#246'r se'#231'ip taramay'#305' ba'#351'lat'#305'n.';
@@ -307,7 +319,7 @@ end;
 
 procedure TFrmVisualFileManager.Render;
 var
-  I, TopPos: Integer;
+  I, TopPos, LeftPos, Column, Row, ColumnCount: Integer;
   Node: TTreeNode;
   Item: TManagedFile;
   Query, TopicFilter: string;
@@ -331,6 +343,9 @@ begin
   end;
   while Cards.ControlCount > 0 do Cards.Controls[0].Free;
   TopPos := 12;
+  Column := 0;
+  Row := 0;
+  ColumnCount := Max(1, (Cards.ClientWidth - 28) div 206);
   Query := LowerCase(Trim(SearchEdit.Text));
   TopicFilter := CategoryBox.Text;
   for I := 0 to FFiles.Count - 1 do
@@ -340,8 +355,23 @@ begin
       ((Query = '') or ContainsText(LowerCase(Item.DisplayName), Query) or
       ContainsText(LowerCase(Item.Preview), Query)) then
     begin
-      AddCard(Item, I, TopPos);
-      Inc(TopPos, 132);
+      if ViewBox.ItemIndex = 1 then
+      begin
+        LeftPos := 14 + (Column * 206);
+        TopPos := 12 + (Row * 190);
+        AddThumbnail(Item, I, LeftPos, TopPos);
+        Inc(Column);
+        if Column >= ColumnCount then
+        begin
+          Column := 0;
+          Inc(Row);
+        end;
+      end
+      else
+      begin
+        AddCard(Item, I, TopPos);
+        Inc(TopPos, 132);
+      end;
     end;
   end;
   StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
@@ -421,6 +451,71 @@ begin
   SummaryLabel.OnClick := CardClick;
 end;
 
+procedure TFrmVisualFileManager.AddThumbnail(const AFile: TManagedFile;
+  const AIndex, ALeft, ATop: Integer);
+var
+  Card, Badge, PreviewBox: TPanel;
+  TypeLabel, NameLabel, TopicLabel, SummaryLabel: TLabel;
+begin
+  Card := TPanel.Create(Self);
+  Card.Parent := Cards;
+  Card.SetBounds(ALeft, ATop, 190, 174);
+  Card.BevelOuter := bvNone;
+  Card.Color := clWhite;
+  Card.Tag := AIndex;
+  Card.OnClick := CardClick;
+  Badge := TPanel.Create(Self);
+  Badge.Parent := Card;
+  Badge.SetBounds(0, 0, Card.Width, 6);
+  Badge.Color := TopicColor(AFile.Topic);
+  Badge.BevelOuter := bvNone;
+  Badge.Tag := AIndex;
+  Badge.Hint := 'FlipBadge';
+  Badge.OnClick := CardClick;
+  PreviewBox := TPanel.Create(Self);
+  PreviewBox.Parent := Card;
+  PreviewBox.SetBounds(12, 18, 166, 64);
+  PreviewBox.BevelOuter := bvNone;
+  PreviewBox.Color := AlternateTopicColor(AFile.Topic);
+  PreviewBox.Tag := AIndex;
+  PreviewBox.OnClick := CardClick;
+  TypeLabel := TLabel.Create(Self);
+  TypeLabel.Parent := PreviewBox;
+  TypeLabel.SetBounds(0, 15, PreviewBox.Width, 30);
+  TypeLabel.Alignment := taCenter;
+  TypeLabel.Font.Style := [fsBold];
+  TypeLabel.Font.Size := 16;
+  TypeLabel.Caption := UpperCase(Copy(AFile.Extension, 2, 8));
+  TypeLabel.Tag := AIndex;
+  TypeLabel.OnClick := CardClick;
+  NameLabel := TLabel.Create(Self);
+  NameLabel.Parent := Card;
+  NameLabel.SetBounds(12, 90, 166, 32);
+  NameLabel.AutoSize := False;
+  NameLabel.WordWrap := True;
+  NameLabel.Font.Style := [fsBold];
+  NameLabel.Caption := AFile.DisplayName;
+  NameLabel.Tag := AIndex;
+  NameLabel.OnClick := CardClick;
+  TopicLabel := TLabel.Create(Self);
+  TopicLabel.Parent := Card;
+  TopicLabel.SetBounds(12, 124, 166, 16);
+  TopicLabel.Font.Color := TopicColor(AFile.Topic);
+  TopicLabel.Caption := AFile.Topic;
+  TopicLabel.Tag := AIndex;
+  TopicLabel.OnClick := CardClick;
+  SummaryLabel := TLabel.Create(Self);
+  SummaryLabel.Parent := Card;
+  SummaryLabel.SetBounds(12, 143, 166, 25);
+  SummaryLabel.AutoSize := False;
+  SummaryLabel.WordWrap := True;
+  SummaryLabel.Font.Color := clGray;
+  SummaryLabel.Caption := Copy(StringReplace(AFile.Summary, sLineBreak, ' ',
+    [rfReplaceAll]), 1, 74);
+  SummaryLabel.Tag := AIndex;
+  SummaryLabel.OnClick := CardClick;
+end;
+
 procedure TFrmVisualFileManager.CardClick(Sender: TObject);
 var
   Index: Integer;
@@ -472,6 +567,11 @@ procedure TFrmVisualFileManager.CategoryChange(Sender: TObject);
 begin
   if not FUpdatingCategories then
     Render;
+end;
+
+procedure TFrmVisualFileManager.ViewChange(Sender: TObject);
+begin
+  Render;
 end;
 
 end.
