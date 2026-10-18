@@ -40,6 +40,21 @@ type
     function IsCompleted: Boolean;
   end;
 
+  TVideoThumbnailWorker = class(TThread)
+  private
+    FIndex: Integer;
+    FFileName: string;
+    FOutputFile: string;
+    FSuccess: Boolean;
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(const AIndex: Integer; const AFileName,
+      AOutputFile: string);
+    property Index: Integer read FIndex;
+    property Success: Boolean read FSuccess;
+  end;
+
   TFrmVisualFileManager = class(TForm)
     ToolPanel: TPanel;
     FolderEdit: TEdit;
@@ -64,11 +79,13 @@ type
     procedure FilterChange(Sender: TObject);
     procedure ScanTimerTick(Sender: TObject);
     procedure ThumbnailTimerTick(Sender: TObject);
+    procedure VideoWorkerDone(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListDblClick(Sender: TObject);
   private
     FFiles: TList<TFileEntry>;
     FScanWorker: TFileScanWorker;
+    FVideoWorker: TVideoThumbnailWorker;
     FVisibleItems: TList<Integer>;
     FThumbnailQueue: TList<Integer>;
     FThumbnailQueuePosition: Integer;
@@ -78,7 +95,10 @@ type
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
     procedure QueueThumbnail(const AIndex: Integer);
+    procedure StartVideoThumbnail(const AIndex: Integer);
+    function IsVideoFile(const AFile: TFileEntry): Boolean;
     procedure LoadOrCreateThumbnail(const AIndex: Integer);
+    procedure RedrawThumbnailItem(const AFileIndex: Integer);
     function FileSizeText(const ASize: Int64): string;
     function ThumbnailFileName(const AFile: TFileEntry): string;
     function HashText(const AValue: string): Cardinal;
@@ -105,6 +125,55 @@ uses
 
 var
   CurrentSort: Integer;
+
+function ExtractVideoFrame(const AFileName, AOutputFile: string): Boolean;
+var
+  StartupInfo: TStartupInfo;
+  ProcessInfo: TProcessInformation;
+  ExitCode: Cardinal;
+  CommandLine: string;
+begin
+  Result := False;
+  if FileExists(AOutputFile) then
+    DeleteFile(AOutputFile);
+  CommandLine := 'ffmpeg.exe -y -ss 00:00:00.500 -i "' + AFileName + '" ';
+  CommandLine := CommandLine + '-frames:v 1 -vf "scale=160:120:';
+  CommandLine := CommandLine + 'force_original_aspect_ratio=decrease,';
+  CommandLine := CommandLine + 'pad=160:120:(ow-iw)/2:(oh-ih)/2:white" ';
+  CommandLine := CommandLine + '-q:v 4 "' + AOutputFile + '"';
+  ZeroMemory(@StartupInfo, SizeOf(StartupInfo));
+  StartupInfo.cb := SizeOf(StartupInfo);
+  StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
+  StartupInfo.wShowWindow := SW_HIDE;
+  ZeroMemory(@ProcessInfo, SizeOf(ProcessInfo));
+  if not CreateProcess(nil, PChar(CommandLine), nil, nil, False,
+    CREATE_NO_WINDOW, nil, nil, StartupInfo, ProcessInfo) then
+    Exit;
+  try
+    WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
+    GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
+    Result := (ExitCode = 0) and FileExists(AOutputFile);
+  finally
+    CloseHandle(ProcessInfo.hThread);
+    CloseHandle(ProcessInfo.hProcess);
+  end;
+end;
+
+constructor TVideoThumbnailWorker.Create(const AIndex: Integer;
+  const AFileName, AOutputFile: string);
+begin
+  inherited Create(True);
+  FreeOnTerminate := False;
+  FIndex := AIndex;
+  FFileName := AFileName;
+  FOutputFile := AOutputFile;
+end;
+
+procedure TVideoThumbnailWorker.Execute;
+begin
+  if not Terminated then
+    FSuccess := ExtractVideoFrame(FFileName, FOutputFile);
+end;
 
 constructor TFileScanWorker.Create(const ARootFolder, AThumbnailFolder: string;
   const AMediaOnly: Boolean);
@@ -270,6 +339,13 @@ begin
     FScanWorker.WaitFor;
     FScanWorker.Free;
   end;
+  if Assigned(FVideoWorker) then
+  begin
+    FVideoWorker.OnTerminate := nil;
+    FVideoWorker.Terminate;
+    FVideoWorker.WaitFor;
+    FVideoWorker.Free;
+  end;
   FThumbnailIndexes.Free;
   FThumbnailQueue.Free;
   FVisibleItems.Free;
@@ -298,6 +374,14 @@ begin
   begin
     ShowMessage('Gecerli bir klasor secin.');
     Exit;
+  end;
+  if Assigned(FVideoWorker) then
+  begin
+    FVideoWorker.OnTerminate := nil;
+    FVideoWorker.Terminate;
+    FVideoWorker.WaitFor;
+    FVideoWorker.Free;
+    FVideoWorker := nil;
   end;
   FRootFolder := ExcludeTrailingPathDelimiter(FolderEdit.Text);
   FThumbnailFolder := TPath.Combine(FRootFolder, 'thumbnail');
@@ -398,6 +482,20 @@ end;
 procedure TFrmVisualFileManager.QueueThumbnail(const AIndex: Integer);
 begin
   FThumbnailQueue.Add(AIndex);
+end;
+
+function TFrmVisualFileManager.IsVideoFile(const AFile: TFileEntry): Boolean;
+begin
+  Result := MatchText(AFile.Extension, ['.mp4', '.avi', '.mkv', '.mov',
+    '.wmv']);
+end;
+
+procedure TFrmVisualFileManager.StartVideoThumbnail(const AIndex: Integer);
+begin
+  FVideoWorker := TVideoThumbnailWorker.Create(AIndex,
+    FFiles[AIndex].FullName, ThumbnailFileName(FFiles[AIndex]));
+  FVideoWorker.OnTerminate := VideoWorkerDone;
+  FVideoWorker.Start;
 end;
 
 procedure TFrmVisualFileManager.Render;
@@ -576,17 +674,48 @@ begin
   Picture.Free;
 end;
 
+procedure TFrmVisualFileManager.RedrawThumbnailItem(
+  const AFileIndex: Integer);
+var
+  VisibleIndex: Integer;
+begin
+  VisibleIndex := FVisibleItems.IndexOf(AFileIndex);
+  if VisibleIndex >= 0 then
+    FileList.RedrawItems(VisibleIndex, VisibleIndex);
+end;
+
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
 var
   FileIndex: Integer;
 begin
   ThumbnailTimer.Enabled := False;
-  if FThumbnailQueuePosition >= FThumbnailQueue.Count then
+  if Assigned(FVideoWorker) or
+    (FThumbnailQueuePosition >= FThumbnailQueue.Count) then
     Exit;
   FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
   Inc(FThumbnailQueuePosition);
-  LoadOrCreateThumbnail(FileIndex);
-  FileList.Invalidate;
+  if IsVideoFile(FFiles[FileIndex]) and
+    not FileExists(ThumbnailFileName(FFiles[FileIndex])) then
+    StartVideoThumbnail(FileIndex)
+  else
+  begin
+    LoadOrCreateThumbnail(FileIndex);
+    RedrawThumbnailItem(FileIndex);
+    if FThumbnailQueuePosition < FThumbnailQueue.Count then
+      ThumbnailTimer.Enabled := True;
+  end;
+end;
+
+procedure TFrmVisualFileManager.VideoWorkerDone(Sender: TObject);
+var
+  Worker: TVideoThumbnailWorker;
+begin
+  Worker := TVideoThumbnailWorker(Sender);
+  FVideoWorker := nil;
+  if (Worker.Index >= 0) and (Worker.Index < FFiles.Count) then
+    LoadOrCreateThumbnail(Worker.Index);
+  RedrawThumbnailItem(Worker.Index);
+  Worker.Free;
   if FThumbnailQueuePosition < FThumbnailQueue.Count then
     ThumbnailTimer.Enabled := True;
 end;
