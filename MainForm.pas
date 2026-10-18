@@ -127,17 +127,28 @@ uses
 var
   CurrentSort: Integer;
 
+function FfmpegExecutable: string;
+begin
+  Result := TPath.Combine(ExtractFilePath(ParamStr(0)), 'ffmpeg.exe');
+  if not FileExists(Result) then
+    Result := '';
+end;
+
 function ExtractVideoFrame(const AFileName, AOutputFile: string): Boolean;
 var
   StartupInfo: TStartupInfo;
   ProcessInfo: TProcessInformation;
   ExitCode: Cardinal;
-  CommandLine: string;
+  CommandLine, FfmpegFile: string;
 begin
   Result := False;
+  FfmpegFile := FfmpegExecutable;
+  if FfmpegFile = '' then
+    Exit;
   if FileExists(AOutputFile) then
     DeleteFile(AOutputFile);
-  CommandLine := 'ffmpeg.exe -y -ss 00:00:00.500 -i "' + AFileName + '" ';
+  CommandLine := '"' + FfmpegFile + '" -y -ss 00:00:00.500 -i "' +
+    AFileName + '" ';
   CommandLine := CommandLine + '-frames:v 1 -vf "scale=160:120:';
   CommandLine := CommandLine + 'force_original_aspect_ratio=decrease,';
   CommandLine := CommandLine + 'pad=160:120:(ow-iw)/2:(oh-ih)/2:white" ';
