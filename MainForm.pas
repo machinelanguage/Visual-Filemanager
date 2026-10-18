@@ -17,6 +17,7 @@ type
     FThumbnailFolder: string;
     FThumbnailQueue: TList<Integer>;
     FThumbnailWorker: TThread;
+    FThumbnailTimer: TTimer;
     FThumbnailImages: TDictionary<string, TImage>;
     FIndexWorker: TThread;
     FSearchWorker: TThread;
@@ -24,6 +25,14 @@ type
     FSearchGeneration: Integer;
     FThumbnailLimit: Integer;
     FListLimit: Integer;
+    FRenderItems: TList<Integer>;
+    FRenderPosition: Integer;
+    FRenderLimit: Integer;
+    FRenderTop: Integer;
+    FRenderColumn: Integer;
+    FRenderRow: Integer;
+    FRenderColumnCount: Integer;
+    FRenderTimer: TTimer;
     FUpdatingCategories: Boolean;
     FFlipPhase: Boolean;
     ToolPanel: TPanel;
@@ -51,6 +60,8 @@ type
     procedure QueueThumbnail(const AIndex: Integer);
     procedure StartNextThumbnail;
     procedure ThumbnailWorkerDone(Sender: TObject);
+    procedure ThumbnailTimerTick(Sender: TObject);
+    procedure RenderTimerTick(Sender: TObject);
     procedure ShowThumbnail(const AIndex: Integer; const AFileName: string);
     procedure CardClick(Sender: TObject);
     procedure FlipTimerTick(Sender: TObject);
@@ -310,17 +321,20 @@ begin
   FSearchMatches.Duplicates := dupIgnore;
   FThumbnailLimit := 80;
   FListLimit := 100;
+  FRenderItems := TList<Integer>.Create;
   FCatalog := TTopicCatalog.Create;
   BuildUi;
   if DirectoryExists(FCatalog.LastFolder) then
   begin
     FolderEdit.Text := FCatalog.LastFolder;
-    ScanClick(nil);
+    StatusLabel.Caption := 'Son klasor hazir. Tara ve siniflandir secin.';
   end;
 end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
+  FRenderTimer.Enabled := False;
+  FThumbnailTimer.Enabled := False;
   if Assigned(FIndexWorker) then
   begin
     FIndexWorker.OnTerminate := nil;
@@ -342,6 +356,7 @@ begin
     FThumbnailWorker.WaitFor;
     FThumbnailWorker.Free;
   end;
+  FRenderItems.Free;
   FThumbnailQueue.Free;
   FThumbnailImages.Free;
   FSearchMatches.Free;
@@ -430,6 +445,12 @@ begin
   FlipTimer := TTimer.Create(Self);
   FlipTimer.Interval := 550;
   FlipTimer.OnTimer := FlipTimerTick;
+  FThumbnailTimer := TTimer.Create(Self);
+  FThumbnailTimer.Interval := 15;
+  FThumbnailTimer.OnTimer := ThumbnailTimerTick;
+  FRenderTimer := TTimer.Create(Self);
+  FRenderTimer.Interval := 15;
+  FRenderTimer.OnTimer := RenderTimerTick;
 end;
 
 procedure TFrmVisualFileManager.BrowseClick(Sender: TObject);
@@ -612,11 +633,12 @@ end;
 
 procedure TFrmVisualFileManager.Render;
 var
-  I, TopPos, LeftPos, Column, Row, ColumnCount, MatchCount, ShownCount: Integer;
+  I: Integer;
   Node: TTreeNode;
   Item: TManagedFile;
   Query, TopicFilter: string;
 begin
+  FRenderTimer.Enabled := False;
   CurrentSort := SortBox.ItemIndex;
   FFiles.Sort(TComparer<TManagedFile>.Construct(CompareFiles));
   UpdateCategoryBox;
@@ -635,13 +657,9 @@ begin
     TopicTree.Items.EndUpdate;
   end;
   FThumbnailImages.Clear;
-  while Cards.ControlCount > 0 do Cards.Controls[0].Free;
-  TopPos := 12;
-  Column := 0;
-  Row := 0;
-  MatchCount := 0;
-  ShownCount := 0;
-  ColumnCount := Max(1, (Cards.ClientWidth - 28) div 206);
+  while Cards.ControlCount > 0 do
+    Cards.Controls[0].Free;
+  FRenderItems.Clear;
   Query := Trim(SearchEdit.Text);
   TopicFilter := CategoryBox.Text;
   for I := 0 to FFiles.Count - 1 do
@@ -649,36 +667,63 @@ begin
     Item := FFiles[I];
     if ((CategoryBox.ItemIndex = 0) or SameText(Item.Topic, TopicFilter)) and
       ((Query = '') or (FSearchMatches.IndexOf(Item.FullName) >= 0)) then
-    begin
-      Inc(MatchCount);
-      if ((ViewBox.ItemIndex = 1) and (ShownCount >= FThumbnailLimit)) or
-        ((ViewBox.ItemIndex = 0) and (ShownCount >= FListLimit)) then
-        Continue;
-      if ViewBox.ItemIndex = 1 then
-      begin
-        LeftPos := 14 + (Column * 206);
-        TopPos := 12 + (Row * 190);
-        AddThumbnail(Item, I, LeftPos, TopPos);
-        Inc(Column);
-        if Column >= ColumnCount then
-        begin
-          Column := 0;
-          Inc(Row);
-        end;
-      end
-      else
-      begin
-        AddCard(Item, I, TopPos);
-        Inc(TopPos, 132);
-      end;
-      Inc(ShownCount);
-    end;
+      FRenderItems.Add(I);
   end;
-  if MatchCount > ShownCount then
+  if ViewBox.ItemIndex = 1 then
+    FRenderLimit := Min(FThumbnailLimit, FRenderItems.Count)
+  else
+    FRenderLimit := Min(FListLimit, FRenderItems.Count);
+  FRenderPosition := 0;
+  FRenderTop := 12;
+  FRenderColumn := 0;
+  FRenderRow := 0;
+  FRenderColumnCount := Max(1, (Cards.ClientWidth - 28) div 206);
+  StatusLabel.Caption := Format('%d dosya bulundu. Hazirlaniyor...',
+    [FFiles.Count]);
+  FRenderTimer.Enabled := FRenderLimit > 0;
+  if FRenderLimit = 0 then
+    RenderTimerTick(FRenderTimer);
+end;
+
+procedure TFrmVisualFileManager.RenderTimerTick(Sender: TObject);
+var
+  Added, Index, LeftPos: Integer;
+begin
+  FRenderTimer.Enabled := False;
+  Added := 0;
+  while (FRenderPosition < FRenderLimit) and (Added < 20) do
+  begin
+    Index := FRenderItems[FRenderPosition];
     if ViewBox.ItemIndex = 1 then
-      AddLoadMoreButton(12 + ((Row + 1) * 190), MatchCount - ShownCount)
+    begin
+      LeftPos := 14 + (FRenderColumn * 206);
+      AddThumbnail(FFiles[Index], Index, LeftPos, 12 + (FRenderRow * 190));
+      Inc(FRenderColumn);
+      if FRenderColumn >= FRenderColumnCount then
+      begin
+        FRenderColumn := 0;
+        Inc(FRenderRow);
+      end;
+    end
     else
-      AddLoadMoreButton(TopPos, MatchCount - ShownCount);
+    begin
+      AddCard(FFiles[Index], Index, FRenderTop);
+      Inc(FRenderTop, 132);
+    end;
+    Inc(FRenderPosition);
+    Inc(Added);
+  end;
+  if FRenderPosition < FRenderLimit then
+  begin
+    FRenderTimer.Enabled := True;
+    Exit;
+  end;
+  if FRenderItems.Count > FRenderLimit then
+    if ViewBox.ItemIndex = 1 then
+      AddLoadMoreButton(12 + ((FRenderRow + 1) * 190),
+        FRenderItems.Count - FRenderLimit)
+    else
+      AddLoadMoreButton(FRenderTop, FRenderItems.Count - FRenderLimit);
   StatusLabel.Caption := Format('%d dosya bulundu. Katalog: %s',
     [FFiles.Count, FCatalog.CatalogFileName]);
 end;
@@ -808,18 +853,7 @@ begin
   ThumbImage.OnClick := CardClick;
   ThumbImage.Visible := False;
   FThumbnailImages.AddOrSetValue(AFile.FullName, ThumbImage);
-  if FileExists(CacheFile) then
-  begin
-    try
-      ThumbImage.Picture.LoadFromFile(CacheFile);
-      ThumbImage.Visible := True;
-      TypeLabel.Visible := False;
-    except
-      QueueThumbnail(AIndex);
-    end;
-  end
-  else
-    QueueThumbnail(AIndex);
+  QueueThumbnail(AIndex);
   NameLabel := TLabel.Create(Self);
   NameLabel.Parent := Card;
   NameLabel.SetBounds(12, 90, 166, 32);
@@ -888,7 +922,7 @@ begin
   if FileExists(CacheFile) then
   begin
     ShowThumbnail(Index, CacheFile);
-    StartNextThumbnail;
+    FThumbnailTimer.Enabled := True;
     Exit;
   end;
   FThumbnailWorker := TThumbnailWorker.Create(Index, FFiles[Index].FullName,
@@ -907,6 +941,12 @@ begin
     SameText(FFiles[Worker.Index].FullName, Worker.FileName) then
     ShowThumbnail(Worker.Index, Worker.CacheFile);
   Worker.Free;
+  FThumbnailTimer.Enabled := True;
+end;
+
+procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
+begin
+  FThumbnailTimer.Enabled := False;
   StartNextThumbnail;
 end;
 
