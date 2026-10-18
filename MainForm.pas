@@ -3,7 +3,8 @@ unit MainForm;
 interface
 
 uses
-  Winapi.Windows, Winapi.ShellAPI, System.SysUtils, System.Classes,
+  Winapi.Windows, Winapi.ShellAPI, Winapi.CommCtrl, System.SysUtils,
+  System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
   Vcl.Dialogs, Vcl.ImgList;
@@ -680,8 +681,8 @@ var
   VisibleIndex: Integer;
 begin
   VisibleIndex := FVisibleItems.IndexOf(AFileIndex);
-  if VisibleIndex >= 0 then
-    FileList.RedrawItems(VisibleIndex, VisibleIndex);
+  if (VisibleIndex >= 0) and FileList.HandleAllocated then
+    SendMessage(FileList.Handle, LVM_REDRAWITEMS, VisibleIndex, VisibleIndex);
 end;
 
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
