@@ -16,6 +16,24 @@ type
     ModifiedAt: TDateTime;
   end;
 
+  TFileScanWorker = class(TThread)
+  private
+    FRootFolder: string;
+    FItems: TList<TFileEntry>;
+    FReadPosition: Integer;
+    FCompleted: Boolean;
+    procedure ScanFolder(const AFolder: string);
+    procedure AddFile(const AFileName: string; const ASearch: TSearchRec);
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(const ARootFolder: string);
+    destructor Destroy; override;
+    function TakeBatch(const ADestination: TList<TFileEntry>;
+      const AMaximum: Integer): Integer;
+    function IsCompleted: Boolean;
+  end;
+
   TFrmVisualFileManager = class(TForm)
     ToolPanel: TPanel;
     FolderEdit: TEdit;
@@ -27,23 +45,22 @@ type
     StatusLabel: TLabel;
     FileList: TListView;
     SearchTimer: TTimer;
-    RenderTimer: TTimer;
+    ScanTimer: TTimer;
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
     procedure ViewChange(Sender: TObject);
-    procedure RenderTimerTick(Sender: TObject);
+    procedure ScanTimerTick(Sender: TObject);
+    procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListDblClick(Sender: TObject);
   private
     FFiles: TList<TFileEntry>;
-    FScanWorker: TThread;
+    FScanWorker: TFileScanWorker;
     FVisibleItems: TList<Integer>;
-    FRenderPosition: Integer;
-    procedure ScanWorkerDone(Sender: TObject);
     procedure Render;
-    procedure AddFileListItem(const AIndex: Integer);
+    procedure AddVisibleFile(const AIndex: Integer);
     function FileSizeText(const ASize: Int64): string;
   public
     constructor Create(AOwner: TComponent); override;
@@ -65,27 +82,14 @@ uses
 var
   CurrentSort: Integer;
 
-type
-  TFileScanWorker = class(TThread)
-  private
-    FRootFolder: string;
-    FItems: TList<TFileEntry>;
-    procedure ScanFolder(const AFolder: string);
-    procedure AddFile(const AFileName: string; const ASearch: TSearchRec);
-  protected
-    procedure Execute; override;
-  public
-    constructor Create(const ARootFolder: string);
-    destructor Destroy; override;
-    property Items: TList<TFileEntry> read FItems;
-  end;
-
 constructor TFileScanWorker.Create(const ARootFolder: string);
 begin
   inherited Create(True);
   FreeOnTerminate := False;
   FRootFolder := ARootFolder;
   FItems := TList<TFileEntry>.Create;
+  FReadPosition := 0;
+  FCompleted := False;
 end;
 
 destructor TFileScanWorker.Destroy;
@@ -106,7 +110,12 @@ begin
   Item.Extension := LowerCase(ExtractFileExt(AFileName));
   Item.Size := Int64(ASearch.Size);
   Item.ModifiedAt := FileDateToDateTime(ASearch.Time);
-  FItems.Add(Item);
+  TMonitor.Enter(FItems);
+  try
+    FItems.Add(Item);
+  finally
+    TMonitor.Exit(FItems);
+  end;
 end;
 
 procedure TFileScanWorker.ScanFolder(const AFolder: string);
@@ -142,7 +151,44 @@ end;
 
 procedure TFileScanWorker.Execute;
 begin
-  ScanFolder(FRootFolder);
+  try
+    ScanFolder(FRootFolder);
+  finally
+    TMonitor.Enter(FItems);
+    try
+      FCompleted := True;
+    finally
+      TMonitor.Exit(FItems);
+    end;
+  end;
+end;
+
+function TFileScanWorker.TakeBatch(const ADestination: TList<TFileEntry>;
+  const AMaximum: Integer): Integer;
+var
+  I, Available: Integer;
+begin
+  Result := 0;
+  TMonitor.Enter(FItems);
+  try
+    Available := FItems.Count - FReadPosition;
+    Result := Min(AMaximum, Available);
+    for I := 0 to Result - 1 do
+      ADestination.Add(FItems[FReadPosition + I]);
+    Inc(FReadPosition, Result);
+  finally
+    TMonitor.Exit(FItems);
+  end;
+end;
+
+function TFileScanWorker.IsCompleted: Boolean;
+begin
+  TMonitor.Enter(FItems);
+  try
+    Result := FCompleted and (FReadPosition = FItems.Count);
+  finally
+    TMonitor.Exit(FItems);
+  end;
 end;
 
 function CompareEntries(const Left, Right: TFileEntry): Integer;
@@ -169,15 +215,15 @@ begin
   FFiles := TList<TFileEntry>.Create;
   FVisibleItems := TList<Integer>.Create;
   FolderEdit.Text := TPath.GetDocumentsPath;
+  FileList.OwnerData := True;
 end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
-  RenderTimer.Enabled := False;
+  ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
   if Assigned(FScanWorker) then
   begin
-    FScanWorker.OnTerminate := nil;
     FScanWorker.Terminate;
     FScanWorker.WaitFor;
     FScanWorker.Free;
@@ -200,7 +246,8 @@ procedure TFrmVisualFileManager.ScanClick(Sender: TObject);
 begin
   if Assigned(FScanWorker) then
   begin
-    StatusLabel.Caption := 'Tarama arka planda devam ediyor.';
+    FScanWorker.Terminate;
+    StatusLabel.Caption := 'Onceki tarama durduruluyor...';
     Exit;
   end;
   if not DirectoryExists(FolderEdit.Text) then
@@ -208,27 +255,47 @@ begin
     ShowMessage('Gecerli bir klasor secin.');
     Exit;
   end;
-  RenderTimer.Enabled := False;
-  FileList.Items.Clear;
+  ScanTimer.Enabled := False;
+  SearchTimer.Enabled := False;
+  FileList.Items.Count := 0;
   FFiles.Clear;
   FVisibleItems.Clear;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FolderEdit.Text);
-  FScanWorker.OnTerminate := ScanWorkerDone;
   FScanWorker.Start;
+  ScanTimer.Enabled := True;
 end;
 
-procedure TFrmVisualFileManager.ScanWorkerDone(Sender: TObject);
+procedure TFrmVisualFileManager.ScanTimerTick(Sender: TObject);
 var
-  Worker: TFileScanWorker;
-  I: Integer;
+  PreviousCount, Added: Integer;
 begin
-  Worker := TFileScanWorker(Sender);
-  FScanWorker := nil;
-  for I := 0 to Worker.Items.Count - 1 do
-    FFiles.Add(Worker.Items[I]);
-  Worker.Free;
-  Render;
+  if not Assigned(FScanWorker) then
+  begin
+    ScanTimer.Enabled := False;
+    Exit;
+  end;
+  PreviousCount := FFiles.Count;
+  Added := FScanWorker.TakeBatch(FFiles, 250);
+  if (Added > 0) and (Trim(SearchEdit.Text) = '') and
+    (SortBox.ItemIndex = 0) then
+  begin
+    while PreviousCount < FFiles.Count do
+    begin
+      AddVisibleFile(PreviousCount);
+      Inc(PreviousCount);
+    end;
+    FileList.Items.Count := FVisibleItems.Count;
+  end;
+  StatusLabel.Caption := Format('%d dosya tarandi...', [FFiles.Count]);
+  if FScanWorker.IsCompleted then
+  begin
+    ScanTimer.Enabled := False;
+    FScanWorker.WaitFor;
+    FScanWorker.Free;
+    FScanWorker := nil;
+    Render;
+  end;
 end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);
@@ -240,13 +307,17 @@ end;
 procedure TFrmVisualFileManager.SearchTimerTick(Sender: TObject);
 begin
   SearchTimer.Enabled := False;
-  if not Assigned(FScanWorker) then
+  if Assigned(FScanWorker) then
+    StatusLabel.Caption := 'Arama tarama tamamlandiginda uygulanacak.'
+  else
     Render;
 end;
 
 procedure TFrmVisualFileManager.SortChange(Sender: TObject);
 begin
-  if not Assigned(FScanWorker) then
+  if Assigned(FScanWorker) then
+    StatusLabel.Caption := 'Siralama tarama tamamlandiginda uygulanacak.'
+  else
     Render;
 end;
 
@@ -256,7 +327,11 @@ begin
     FileList.ViewStyle := vsIcon
   else
     FileList.ViewStyle := vsReport;
-  Render;
+end;
+
+procedure TFrmVisualFileManager.AddVisibleFile(const AIndex: Integer);
+begin
+  FVisibleItems.Add(AIndex);
 end;
 
 procedure TFrmVisualFileManager.Render;
@@ -264,22 +339,18 @@ var
   I: Integer;
   Query: string;
 begin
-  RenderTimer.Enabled := False;
   CurrentSort := SortBox.ItemIndex;
   FFiles.Sort(TComparer<TFileEntry>.Construct(CompareEntries));
   FVisibleItems.Clear;
   Query := Trim(SearchEdit.Text);
   for I := 0 to FFiles.Count - 1 do
     if (Query = '') or ContainsText(FFiles[I].DisplayName, Query) then
-      FVisibleItems.Add(I);
-  FileList.Items.Clear;
-  FRenderPosition := 0;
-  StatusLabel.Caption := Format('%d dosya bulundu. Listeleniyor...',
-    [FVisibleItems.Count]);
+      AddVisibleFile(I);
+  FileList.Items.Count := FVisibleItems.Count;
   if FVisibleItems.Count = 0 then
     StatusLabel.Caption := 'Dosya bulunamadi.'
   else
-    RenderTimer.Enabled := True;
+    StatusLabel.Caption := Format('%d dosya bulundu.', [FVisibleItems.Count]);
 end;
 
 function TFrmVisualFileManager.FileSizeText(const ASize: Int64): string;
@@ -294,41 +365,22 @@ begin
     Result := IntToStr(ASize) + ' B';
 end;
 
-procedure TFrmVisualFileManager.AddFileListItem(const AIndex: Integer);
+procedure TFrmVisualFileManager.FileListData(Sender: TObject;
+  Item: TListItem);
 var
-  Item: TListItem;
+  FileIndex: Integer;
   FileEntry: TFileEntry;
 begin
-  FileEntry := FFiles[AIndex];
-  Item := FileList.Items.Add;
+  if (Item.Index < 0) or (Item.Index >= FVisibleItems.Count) then
+    Exit;
+  FileIndex := FVisibleItems[Item.Index];
+  FileEntry := FFiles[FileIndex];
   Item.Caption := FileEntry.DisplayName;
+  Item.SubItems.Clear;
   Item.SubItems.Add(FileEntry.Extension);
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
   Item.SubItems.Add(DateTimeToStr(FileEntry.ModifiedAt));
   Item.SubItems.Add(FileEntry.FullName);
-end;
-
-procedure TFrmVisualFileManager.RenderTimerTick(Sender: TObject);
-var
-  Added: Integer;
-begin
-  RenderTimer.Enabled := False;
-  Added := 0;
-  FileList.Items.BeginUpdate;
-  try
-    while (FRenderPosition < FVisibleItems.Count) and (Added < 150) do
-    begin
-      AddFileListItem(FVisibleItems[FRenderPosition]);
-      Inc(FRenderPosition);
-      Inc(Added);
-    end;
-  finally
-    FileList.Items.EndUpdate;
-  end;
-  if FRenderPosition < FVisibleItems.Count then
-    RenderTimer.Enabled := True
-  else
-    StatusLabel.Caption := Format('%d dosya bulundu.', [FVisibleItems.Count]);
 end;
 
 procedure TFrmVisualFileManager.FileListDblClick(Sender: TObject);
