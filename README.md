@@ -1,36 +1,25 @@
-# Konusal Dosya Yöneticisi
+# Dosya Yoneticisi
 
-Delphi 10.2 VCL ile hazırlanmış, yerelde çalışan görsel dosya sınıflandırıcıdır.
+Delphi 10.2 VCL ile gelistirilmis, yerelde calisan sade bir dosya yoneticisidir.
 
-## İşlevler
+## Islevler
 
-- Seçilen klasörü ve alt klasörlerini tarar.
-- Dosya adını ve desteklenen dosyalardaki metni birlikte analiz eder.
-- Finans, Hukuk, Projeler, Medya, Kişisel ve Diğer konularına puanla ayırır.
-- Renkli kartlar ile dosya konusunu, önizlemeyi, boyutu ve güven puanını gösterir.
-- Dosya adı veya indekslenen içerikte arama yapar.
-- PDF dahil sınıflandırma sonucunu kalıcı katalogda saklar; son taranan klasör
-  uygulama açıldığında yeniden yüklenir.
-- Konu açılır kutusundan seçim yapıldığında yalnızca ilgili dosyaları gösterir.
+- Secilen klasoru ve alt klasorlerini arka planda tarar.
+- Dosyalari ad, uzanti, boyut ve degisiklik tarihine gore listeler.
+- Dosya adinda arama yapar.
+- Ada, tarihe, boyuta veya uzantiya gore siralama sunar.
+- Liste ve kucuk simge gorunumleri vardir.
+- Dosyaya tiklandiginda Windows varsayilan uygulamasiyla acilir.
+- Buyuk klasorlerde kartlari parcalar halinde yukleyerek arayuzun yanit vermesini korur.
 
-## Metin çıkarma kapsamı
+## Kapsam
 
-TXT, CSV, günlük, JSON, XML, kaynak kodu ve benzeri düz metinler doğrudan;
-DOCX, paket içindeki `word/document.xml` üzerinden; PDF ise sayfadaki okunabilir
-metin dizileri üzerinden taranır. Şifreli, taranmış görüntü PDF'leri ve eski DOC
-dosyaları için güvenilir yerel metin çıkarma bu sürümde yoktur; bu dosyalar ad ve
-uzantıya göre yine listelenir. Görüntü tabanlı PDF'lerde ilk sayfa, kuruluysa
-Poppler `pdftoppm.exe` ve Tesseract `tur+eng` ile yerel olarak OCR'dan geçirilir.
-Bu iki araç yoksa PDF, combobox'ta `OCR Bekliyor` olarak ayrılır.
+Bu surum PDF, Word veya diger belge turlerinden metin cikartmaz. OCR, konu
+siniflandirma, kalici konu katalogu ve belge ozeti yoktur. Dosyalar yalnizca
+temel dosya sistemi bilgileriyle yonetilir.
 
 ## Derleme
 
-Delphi 10.2 ile `VisualFileManager.dpr` dosyasını açıp Win32 hedefinde derleyin.
-Uygulama herhangi bir ağ servisine veya veritabanına ihtiyaç duymaz.
-Katalog, kullanıcının Belgeler klasöründe `VisualFileManager\\topic-catalog.ini`
-dosyasında tutulur.
-
-Nextcloud veya OneDrive gibi bulut sağlayıcılarında yalnızca çevrimiçi görünen
-PDF'ler indekslenemez. Önce dosyayı `çevrimdışı kullanılabilir` yapın; ardından
-taramayı yenileyin. Bulut sağlayıcısı dosyayı açamadığında uygulama bunu
-`Bulut Dosyası Hazır Değil` kategorisinde gösterir.
+Delphi 10.2 ile `VisualFileManager.dpr` dosyasini acip Win32 hedefinde
+derleyin. Uygulama ag servisi, veritabani, OCR motoru veya harici araca
+ihtiyac duymaz.
