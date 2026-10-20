@@ -198,4 +198,11 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Left = 1040
     Top = 48
   end
+  object ThumbnailStagingImages: TImageList
+    ColorDepth = cd32Bit
+    Height = 120
+    Width = 160
+    Left = 1080
+    Top = 48
+  end
 end
