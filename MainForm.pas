@@ -95,6 +95,7 @@ type
     procedure ThumbnailTimerTick(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListClick(Sender: TObject);
+    procedure FileListMouseEnter(Sender: TObject);
     procedure FileListDblClick(Sender: TObject);
   private
     FFiles: TList<TFileEntry>;
@@ -1056,6 +1057,13 @@ procedure TFrmVisualFileManager.FileListClick(Sender: TObject);
 begin
   if ClickModeBox.ItemIndex = 1 then
     OpenSelectedFile;
+end;
+
+procedure TFrmVisualFileManager.FileListMouseEnter(Sender: TObject);
+begin
+  { Windows routes the wheel to the focused VCL control. }
+  if FileList.CanFocus and not FileList.Focused then
+    FileList.SetFocus;
 end;
 
 procedure TFrmVisualFileManager.FileListDblClick(Sender: TObject);
