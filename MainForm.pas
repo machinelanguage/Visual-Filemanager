@@ -1107,7 +1107,8 @@ begin
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
   Item.SubItems.Add(DateTimeToStr(FileEntry.ModifiedAt));
   Item.SubItems.Add(FileEntry.FullName);
-  if FThumbnailIndexes.TryGetValue(FileEntry.FullName, ImageIndex) then
+  if FThumbnailIndexes.TryGetValue(FileEntry.FullName, ImageIndex) and
+    (ImageIndex < ThumbnailImages.Count) then
     Item.ImageIndex := ImageIndex
   else
     Item.ImageIndex := PlaceholderImageIndex(FileEntry);
