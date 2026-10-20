@@ -723,7 +723,7 @@ end;
 
 procedure TFrmVisualFileManager.QueueThumbnailPage(const AVisibleIndex: Integer);
 const
-  ThumbnailPageSize = 40;
+  ThumbnailPageSize = 12;
 var
   FirstIndex, LastIndex, I: Integer;
 begin
@@ -964,8 +964,12 @@ begin
 end;
 
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
+const
+  CachedItemsPerTick = 4;
 var
-  FileIndex: Integer;
+  FileIndex, LoadedCount: Integer;
+  CacheFile: string;
+  WasCached: Boolean;
 begin
   ThumbnailTimer.Enabled := False;
 
@@ -979,21 +983,28 @@ begin
     CompleteVideoThumbnail;
   end;
 
-  if FThumbnailQueuePosition >= FThumbnailQueue.Count then
+  LoadedCount := 0;
+  while FThumbnailQueuePosition < FThumbnailQueue.Count do
   begin
-    PublishThumbnails;
-    Exit;
-  end;
+    FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
+    Inc(FThumbnailQueuePosition);
+    CacheFile := ThumbnailFileName(FFiles[FileIndex]);
+    WasCached := FileExists(CacheFile);
 
-  FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
-  Inc(FThumbnailQueuePosition);
-  if IsVideoFile(FFiles[FileIndex]) and
-    not FileExists(ThumbnailFileName(FFiles[FileIndex])) then
-    StartVideoThumbnail(FileIndex)
-  else
-  begin
+    if IsVideoFile(FFiles[FileIndex]) and not WasCached then
+    begin
+      StartVideoThumbnail(FileIndex);
+      Break;
+    end;
+
     LoadOrCreateThumbnail(FileIndex);
     RedrawThumbnailItem(FileIndex);
+    Inc(LoadedCount);
+
+    { Existing cached thumbnails are cheap to load, so show the initial
+      viewport promptly. New image decoding stays one-at-a-time. }
+    if not WasCached or (LoadedCount >= CachedItemsPerTick) then
+      Break;
   end;
 
   if Assigned(FVideoWorker) or
