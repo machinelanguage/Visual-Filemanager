@@ -115,6 +115,7 @@ type
     FPendingScanFolder: string;
     FPendingMediaOnly: Boolean;
     FStartupScanDone: Boolean;
+    FLastScanUiTick: Cardinal;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
@@ -630,6 +631,8 @@ begin
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
     AMediaOnly);
+  FScanWorker.Priority := tpLower;
+  FLastScanUiTick := 0;
   FScanWorker.Start;
   ScanTimer.Enabled := True;
   StopButton.Enabled := True;
@@ -697,7 +700,9 @@ begin
     Exit;
   end;
   PreviousCount := FFiles.Count;
-  Added := FScanWorker.TakeBatch(FFiles, 100);
+  { Keep this UI-side batch intentionally small. File discovery remains in
+    TFileScanWorker; this timer only merges already-discovered entries. }
+  Added := FScanWorker.TakeBatch(FFiles, 25);
   if (Added > 0) and (Trim(SearchEdit.Text) = '') and
     (SortBox.ItemIndex = 0) then
   begin
@@ -706,7 +711,12 @@ begin
       AddVisibleFile(PreviousCount);
       Inc(PreviousCount);
     end;
-    FileList.Items.Count := FVisibleItems.Count;
+    if (FLastScanUiTick = 0) or
+      (Cardinal(GetTickCount - FLastScanUiTick) >= 200) then
+    begin
+      FileList.Items.Count := FVisibleItems.Count;
+      FLastScanUiTick := GetTickCount;
+    end;
     QueueThumbnailPage(0);
   end;
   StatusLabel.Caption := Format('%d dosya tarandi...', [FFiles.Count]);
