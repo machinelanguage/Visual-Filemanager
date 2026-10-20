@@ -3,7 +3,7 @@ unit MainForm;
 interface
 
 uses
-  Winapi.Windows, Winapi.ShellAPI, Winapi.CommCtrl, System.SysUtils,
+  Winapi.Windows, Winapi.Messages, Winapi.ShellAPI, Winapi.CommCtrl, System.SysUtils,
   System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
