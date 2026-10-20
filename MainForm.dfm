@@ -169,6 +169,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
     OnClick = FileListClick
     OnData = FileListData
     OnDblClick = FileListDblClick
+    OnMouseEnter = FileListMouseEnter
   end
   object SearchTimer: TTimer
     Enabled = False
