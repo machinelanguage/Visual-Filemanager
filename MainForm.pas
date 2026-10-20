@@ -589,10 +589,15 @@ begin
 end;
 
 function TFrmVisualFileManager.ThumbnailFileName(const AFile: TFileEntry): string;
+var
+  CacheVersion: string;
 begin
+  CacheVersion := 'image-cache-v1';
+  if IsVideoFile(AFile) then
+    CacheVersion := 'video-frame-v1';
   Result := TPath.Combine(FThumbnailFolder, IntToHex(HashText(AFile.FullName +
-    '|' + IntToStr(AFile.Size) + '|' + IntToStr(Trunc(AFile.ModifiedAt * 86400000))),
-    8) + '.jpg');
+    '|' + IntToStr(AFile.Size) + '|' + IntToStr(Trunc(AFile.ModifiedAt * 86400000)) +
+    '|' + CacheVersion), 8) + '.jpg');
 end;
 
 procedure TFrmVisualFileManager.CreateGenericThumbnail(const AFile: TFileEntry;
