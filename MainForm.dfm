@@ -14,6 +14,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
   Position = poScreenCenter
   PixelsPerInch = 96
   TextHeight = 13
+  OnShow = FormShow
   object ToolPanel: TPanel
     Left = 0
     Top = 0
@@ -47,12 +48,22 @@ object FrmVisualFileManager: TFrmVisualFileManager
       TabOrder = 2
       OnClick = ScanClick
     end
+    object StopButton: TButton
+      Left = 736
+      Top = 13
+      Width = 92
+      Height = 27
+      Caption = 'Taramayi Durdur'
+      Enabled = False
+      TabOrder = 3
+      OnClick = StopClick
+    end
     object SearchEdit: TEdit
       Left = 16
       Top = 46
       Width = 350
       Height = 23
-      TabOrder = 3
+      TabOrder = 4
       TextHint = 'Dosya adinda ara...'
       OnChange = SearchChange
     end
@@ -63,7 +74,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Height = 23
       Style = csDropDownList
       ItemIndex = 0
-      TabOrder = 4
+      TabOrder = 5
       Text = 'Dosya adi'
       OnChange = SortChange
       Items.Strings = (
@@ -79,7 +90,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Height = 23
       Style = csDropDownList
       ItemIndex = 0
-      TabOrder = 5
+      TabOrder = 6
       Text = 'Liste'
       OnChange = ViewChange
       Items.Strings = (
@@ -93,15 +104,29 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Height = 23
       Style = csDropDownList
       ItemIndex = 0
-      TabOrder = 6
+      TabOrder = 7
       Text = 'Medya ve PDF'
       OnChange = FilterChange
       Items.Strings = (
         'Medya ve PDF'
         'Tum dosyalar')
     end
-    object StatusLabel: TLabel
+    object ClickModeBox: TComboBox
       Left = 840
+      Top = 46
+      Width = 130
+      Height = 23
+      Style = csDropDownList
+      ItemIndex = 0
+      TabOrder = 8
+      Text = 'Cift tikla ac'
+      OnChange = ClickModeChange
+      Items.Strings = (
+        'Cift tikla ac'
+        'Tek tikla ac')
+    end
+    object StatusLabel: TLabel
+      Left = 980
       Top = 49
       Width = 234
       Height = 13
@@ -141,6 +166,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
     RowSelect = True
     TabOrder = 1
     ViewStyle = vsReport
+    OnClick = FileListClick
     OnData = FileListData
     OnDblClick = FileListDblClick
   end
