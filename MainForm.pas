@@ -132,23 +132,17 @@ var
 function FfmpegExecutable: string;
 var
   ApplicationFolder, Candidate: string;
-  Files: TArray<string>;
 begin
   Result := '';
   ApplicationFolder := ExtractFilePath(ParamStr(0));
   Candidate := TPath.Combine(ApplicationFolder, 'ffmpeg.exe');
   if FileExists(Candidate) then
-    Exit(Candidate);
-  Candidate := TPath.Combine(ApplicationFolder, 'ffmpeg\\bin\\ffmpeg.exe');
-  if FileExists(Candidate) then
-    Exit(Candidate);
-  try
-    Files := TDirectory.GetFiles(ApplicationFolder, 'ffmpeg.exe',
-      TSearchOption.soAllDirectories);
-    if Length(Files) > 0 then
-      Result := Files[0];
-  except
-    Result := '';
+    Result := Candidate
+  else
+  begin
+    Candidate := TPath.Combine(ApplicationFolder, 'ffmpeg\\bin\\ffmpeg.exe');
+    if FileExists(Candidate) then
+      Result := Candidate;
   end;
 end;
 
@@ -188,11 +182,23 @@ begin
     Exit;
   end;
   try
-    WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
-    GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
-    Result := (ExitCode = 0) and FileExists(AOutputFile);
-    if not Result then
-      AErrorText := 'FFmpeg cikis kodu: ' + IntToStr(ExitCode);
+    case WaitForSingleObject(ProcessInfo.hProcess, 8000) of
+      WAIT_OBJECT_0:
+        begin
+          GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
+          Result := (ExitCode = 0) and FileExists(AOutputFile);
+          if not Result then
+            AErrorText := 'FFmpeg cikis kodu: ' + IntToStr(ExitCode);
+        end;
+      WAIT_TIMEOUT:
+        begin
+          TerminateProcess(ProcessInfo.hProcess, 1);
+          AErrorText := 'FFmpeg 8 saniye icinde kare uretemedi.';
+        end;
+    else
+      AErrorText := 'FFmpeg bekleme hatasi: ' +
+        SysErrorMessage(GetLastError);
+    end;
   finally
     CloseHandle(ProcessInfo.hThread);
     CloseHandle(ProcessInfo.hProcess);
@@ -404,6 +410,11 @@ end;
 
 procedure TFrmVisualFileManager.ScanClick(Sender: TObject);
 begin
+  if Assigned(FVideoWorker) then
+  begin
+    StatusLabel.Caption := 'Video kucuk resmi hazirlaniyor. Lutfen bekleyin.';
+    Exit;
+  end;
   if Assigned(FScanWorker) then
   begin
     FScanWorker.Terminate;
