@@ -501,8 +501,8 @@ var
 begin
   Inc(FThumbnailRefreshCount);
   CurrentTick := GetTickCount;
-  if not AForce and (FThumbnailRefreshCount < 12) and
-    (Cardinal(CurrentTick - FLastThumbnailRefreshTick) < 250) then
+  if not AForce and (FThumbnailRefreshCount < 48) and
+    (Cardinal(CurrentTick - FLastThumbnailRefreshTick) < 1000) then
     Exit;
 
   if FileList.HandleAllocated then
@@ -554,7 +554,10 @@ var
 begin
   Folder := FolderEdit.Text;
   if SelectDirectory('Taranacak klasoru secin', '', Folder) then
+  begin
     FolderEdit.Text := Folder;
+    ScanClick(nil);
+  end;
 end;
 
 procedure TFrmVisualFileManager.ScanClick(Sender: TObject);
@@ -573,7 +576,6 @@ begin
     FPendingScanFolder := RequestedFolder;
     FPendingMediaOnly := FilterBox.ItemIndex = 0;
     FScanWorker.Terminate;
-    StopButton.Enabled := False;
     StatusLabel.Caption := 'Onceki tarama durduruluyor, yeni tarama bekliyor...';
     Exit;
   end;
@@ -587,7 +589,6 @@ begin
   if Assigned(FScanWorker) then
   begin
     FScanWorker.Terminate;
-    StopButton.Enabled := False;
     StatusLabel.Caption := 'Tarama durduruluyor...';
   end;
 end;
@@ -925,6 +926,8 @@ begin
   begin
     if not FVideoWorker.IsCompleted then
     begin
+      if FThumbnailRefreshCount > 0 then
+        RefreshThumbnails(True);
       ThumbnailTimer.Enabled := True;
       Exit;
     end;
@@ -933,7 +936,8 @@ begin
 
   if FThumbnailQueuePosition >= FThumbnailQueue.Count then
   begin
-    RefreshThumbnails(True);
+    if not Assigned(FScanWorker) then
+      RefreshThumbnails(True);
     Exit;
   end;
 
@@ -951,7 +955,7 @@ begin
   if Assigned(FVideoWorker) or
     (FThumbnailQueuePosition < FThumbnailQueue.Count) then
     ThumbnailTimer.Enabled := True
-  else
+  else if not Assigned(FScanWorker) then
     RefreshThumbnails(True);
 end;
 
