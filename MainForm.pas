@@ -104,6 +104,7 @@ type
     FThumbnailQueue: TList<Integer>;
     FThumbnailQueuePosition: Integer;
     FThumbnailIndexes: TDictionary<string, Integer>;
+    FQueuedThumbnailFiles: TDictionary<string, Boolean>;
     FRootFolder: string;
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
@@ -122,6 +123,7 @@ type
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
     procedure QueueThumbnail(const AIndex: Integer);
+    procedure QueueThumbnailPage(const AVisibleIndex: Integer);
     procedure StartVideoThumbnail(const AIndex: Integer);
     procedure CompleteVideoThumbnail;
     function IsVideoFile(const AFile: TFileEntry): Boolean;
@@ -422,6 +424,7 @@ begin
   FVisibleItems := TList<Integer>.Create;
   FThumbnailQueue := TList<Integer>.Create;
   FThumbnailIndexes := TDictionary<string, Integer>.Create;
+  FQueuedThumbnailFiles := TDictionary<string, Boolean>.Create;
   LoadSettings;
 end;
 
@@ -444,6 +447,7 @@ begin
     FVideoWorker.WaitFor;
     FVideoWorker.Free;
   end;
+  FQueuedThumbnailFiles.Free;
   FThumbnailIndexes.Free;
   FThumbnailQueue.Free;
   FVisibleItems.Free;
@@ -552,6 +556,7 @@ begin
   FThumbnailQueue.Clear;
   FThumbnailQueuePosition := 0;
   FThumbnailIndexes.Clear;
+  FQueuedThumbnailFiles.Clear;
   ThumbnailImages.Clear;
   ThumbnailStagingImages.Clear;
   FThumbnailImagesDirty := False;
@@ -632,10 +637,10 @@ begin
     while PreviousCount < FFiles.Count do
     begin
       AddVisibleFile(PreviousCount);
-      QueueThumbnail(PreviousCount);
       Inc(PreviousCount);
     end;
     FileList.Items.Count := FVisibleItems.Count;
+    QueueThumbnailPage(0);
   end;
   StatusLabel.Caption := Format('%d dosya tarandi...', [FFiles.Count]);
   if FThumbnailQueuePosition < FThumbnailQueue.Count then
@@ -684,7 +689,10 @@ end;
 procedure TFrmVisualFileManager.ViewChange(Sender: TObject);
 begin
   if ViewBox.ItemIndex = 1 then
-    FileList.ViewStyle := vsIcon
+  begin
+    FileList.ViewStyle := vsIcon;
+    QueueThumbnailPage(0);
+  end
   else
     FileList.ViewStyle := vsReport;
 end;
@@ -700,8 +708,34 @@ begin
 end;
 
 procedure TFrmVisualFileManager.QueueThumbnail(const AIndex: Integer);
+var
+  FileName: string;
 begin
+  if (AIndex < 0) or (AIndex >= FFiles.Count) then
+    Exit;
+  FileName := FFiles[AIndex].FullName;
+  if FThumbnailIndexes.ContainsKey(FileName) or
+    FQueuedThumbnailFiles.ContainsKey(FileName) then
+    Exit;
+  FQueuedThumbnailFiles.Add(FileName, True);
   FThumbnailQueue.Add(AIndex);
+end;
+
+procedure TFrmVisualFileManager.QueueThumbnailPage(const AVisibleIndex: Integer);
+const
+  ThumbnailPageSize = 40;
+var
+  FirstIndex, LastIndex, I: Integer;
+begin
+  if FVisibleItems.Count = 0 then
+    Exit;
+  FirstIndex := (Max(0, AVisibleIndex) div ThumbnailPageSize) *
+    ThumbnailPageSize;
+  LastIndex := Min(FVisibleItems.Count - 1, FirstIndex + ThumbnailPageSize - 1);
+  for I := FirstIndex to LastIndex do
+    QueueThumbnail(FVisibleItems[I]);
+  if FThumbnailQueuePosition < FThumbnailQueue.Count then
+    ThumbnailTimer.Enabled := True;
 end;
 
 function TFrmVisualFileManager.IsVideoFile(const AFile: TFileEntry): Boolean;
@@ -749,15 +783,15 @@ begin
   FFiles.Sort(TComparer<TFileEntry>.Construct(CompareEntries));
   FVisibleItems.Clear;
   FThumbnailQueue.Clear;
+  FQueuedThumbnailFiles.Clear;
   FThumbnailQueuePosition := 0;
   Query := Trim(SearchEdit.Text);
   for I := 0 to FFiles.Count - 1 do
   begin
     if (Query = '') or ContainsText(FFiles[I].DisplayName, Query) then
       AddVisibleFile(I);
-    QueueThumbnail(I);
   end;
-  FThumbnailQueuePosition := 0;
+  QueueThumbnailPage(0);
   FileList.Items.Count := FVisibleItems.Count;
   if FVisibleItems.Count = 0 then
     StatusLabel.Caption := 'Dosya bulunamadi.'
@@ -947,8 +981,7 @@ begin
 
   if FThumbnailQueuePosition >= FThumbnailQueue.Count then
   begin
-    if not Assigned(FScanWorker) then
-      PublishThumbnails;
+    PublishThumbnails;
     Exit;
   end;
 
@@ -966,7 +999,7 @@ begin
   if Assigned(FVideoWorker) or
     (FThumbnailQueuePosition < FThumbnailQueue.Count) then
     ThumbnailTimer.Enabled := True
-  else if not Assigned(FScanWorker) then
+  else
     PublishThumbnails;
 end;
 
@@ -990,6 +1023,8 @@ begin
     Item.ImageIndex := ImageIndex
   else
     Item.ImageIndex := -1;
+  if ViewBox.ItemIndex = 1 then
+    QueueThumbnailPage(Item.Index);
 end;
 
 procedure TFrmVisualFileManager.OpenSelectedFile;
