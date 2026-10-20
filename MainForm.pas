@@ -7,7 +7,7 @@ uses
   System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
-  Vcl.Dialogs, Vcl.ImgList;
+  Vcl.Dialogs, Vcl.ImgList, System.IniFiles;
 
 type
   TFileEntry = record
@@ -98,6 +98,12 @@ type
     FThumbnailIndexes: TDictionary<string, Integer>;
     FRootFolder: string;
     FThumbnailFolder: string;
+    FThumbnailRefreshCount: Integer;
+    FLastThumbnailRefreshTick: Cardinal;
+    procedure LoadSettings;
+    procedure SaveSettings;
+    function SettingsFileName: string;
+    procedure RefreshThumbnails(const AForce: Boolean = False);
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
     procedure QueueThumbnail(const AIndex: Integer);
@@ -401,11 +407,12 @@ begin
   FVisibleItems := TList<Integer>.Create;
   FThumbnailQueue := TList<Integer>.Create;
   FThumbnailIndexes := TDictionary<string, Integer>.Create;
-  FolderEdit.Text := TPath.GetDocumentsPath;
+  LoadSettings;
 end;
 
 destructor TFrmVisualFileManager.Destroy;
 begin
+  SaveSettings;
   ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
   ThumbnailTimer.Enabled := False;
@@ -427,6 +434,63 @@ begin
   FVisibleItems.Free;
   FFiles.Free;
   inherited;
+end;
+
+function TFrmVisualFileManager.SettingsFileName: string;
+begin
+  Result := TPath.Combine(TPath.GetDocumentsPath, 'VisualFileManager.ini');
+end;
+
+procedure TFrmVisualFileManager.LoadSettings;
+var
+  Ini: TIniFile;
+  SavedFolder: string;
+  SavedView: Integer;
+begin
+  FolderEdit.Text := TPath.GetDocumentsPath;
+  Ini := TIniFile.Create(SettingsFileName);
+  try
+    SavedFolder := Ini.ReadString('General', 'LastFolder', '');
+    if DirectoryExists(SavedFolder) then
+      FolderEdit.Text := SavedFolder;
+    SavedView := Ini.ReadInteger('General', 'ViewMode', 0);
+    if (SavedView >= 0) and (SavedView < ViewBox.Items.Count) then
+      ViewBox.ItemIndex := SavedView
+    else
+      ViewBox.ItemIndex := 0;
+  finally
+    Ini.Free;
+  end;
+  ViewChange(nil);
+end;
+
+procedure TFrmVisualFileManager.SaveSettings;
+var
+  Ini: TIniFile;
+begin
+  Ini := TIniFile.Create(SettingsFileName);
+  try
+    Ini.WriteString('General', 'LastFolder', FolderEdit.Text);
+    Ini.WriteInteger('General', 'ViewMode', ViewBox.ItemIndex);
+  finally
+    Ini.Free;
+  end;
+end;
+
+procedure TFrmVisualFileManager.RefreshThumbnails(const AForce: Boolean);
+var
+  CurrentTick: Cardinal;
+begin
+  Inc(FThumbnailRefreshCount);
+  CurrentTick := GetTickCount;
+  if not AForce and (FThumbnailRefreshCount < 12) and
+    (Cardinal(CurrentTick - FLastThumbnailRefreshTick) < 250) then
+    Exit;
+
+  if FileList.HandleAllocated then
+    FileList.Invalidate;
+  FThumbnailRefreshCount := 0;
+  FLastThumbnailRefreshTick := CurrentTick;
 end;
 
 procedure TFrmVisualFileManager.BrowseClick(Sender: TObject);
@@ -781,12 +845,10 @@ end;
 
 procedure TFrmVisualFileManager.RedrawThumbnailItem(
   const AFileIndex: Integer);
-var
-  VisibleIndex: Integer;
 begin
-  VisibleIndex := FVisibleItems.IndexOf(AFileIndex);
-  if (VisibleIndex >= 0) and FileList.HandleAllocated then
-    SendMessage(FileList.Handle, LVM_REDRAWITEMS, VisibleIndex, VisibleIndex);
+  { Avoid a separate LVM_REDRAWITEMS message for every image.  In icon view
+    that repaints the list repeatedly and produces visible flicker. }
+  RefreshThumbnails(False);
 end;
 
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
@@ -806,7 +868,10 @@ begin
   end;
 
   if FThumbnailQueuePosition >= FThumbnailQueue.Count then
+  begin
+    RefreshThumbnails(True);
     Exit;
+  end;
 
   FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
   Inc(FThumbnailQueuePosition);
@@ -821,7 +886,9 @@ begin
 
   if Assigned(FVideoWorker) or
     (FThumbnailQueuePosition < FThumbnailQueue.Count) then
-    ThumbnailTimer.Enabled := True;
+    ThumbnailTimer.Enabled := True
+  else
+    RefreshThumbnails(True);
 end;
 
 procedure TFrmVisualFileManager.FileListData(Sender: TObject;
