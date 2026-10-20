@@ -58,6 +58,7 @@ type
     destructor Destroy; override;
     function IsCompleted: Boolean;
     property Index: Integer read FIndex;
+    property FileName: string read FFileName;
     property Success: Boolean read FSuccess;
     property ErrorText: string read FErrorText;
   end;
@@ -712,11 +713,14 @@ begin
   FVideoWorker := nil;
   Worker.WaitFor;
   FileIndex := Worker.Index;
-  if (FileIndex >= 0) and (FileIndex < FFiles.Count) then
+  if (FileIndex >= 0) and (FileIndex < FFiles.Count) and
+    SameText(FFiles[FileIndex].FullName, Worker.FileName) then
+  begin
     LoadOrCreateThumbnail(FileIndex);
-  if not Worker.Success then
-    StatusLabel.Caption := 'MP4 kare cikarilamadi: ' + Worker.ErrorText;
-  RedrawThumbnailItem(FileIndex);
+    RedrawThumbnailItem(FileIndex);
+    if not Worker.Success then
+      StatusLabel.Caption := 'MP4 kare cikarilamadi: ' + Worker.ErrorText;
+  end;
   Worker.Free;
 end;
 
