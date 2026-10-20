@@ -80,6 +80,7 @@ type
     ScanTimer: TTimer;
     ThumbnailTimer: TTimer;
     ThumbnailImages: TImageList;
+    ThumbnailStagingImages: TImageList;
     procedure FormShow(Sender: TObject);
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
@@ -107,6 +108,7 @@ type
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
     FLastThumbnailRefreshTick: Cardinal;
+    FThumbnailImagesDirty: Boolean;
     FPendingScanFolder: string;
     FPendingMediaOnly: Boolean;
     FStartupScanDone: Boolean;
@@ -114,6 +116,7 @@ type
     procedure SaveSettings;
     function SettingsFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
+    procedure PublishThumbnails;
     procedure StartScan(const AFolder: string; const AMediaOnly: Boolean);
     procedure OpenSelectedFile;
     procedure Render;
@@ -496,22 +499,33 @@ begin
 end;
 
 procedure TFrmVisualFileManager.RefreshThumbnails(const AForce: Boolean);
-var
-  CurrentTick: Cardinal;
 begin
-  Inc(FThumbnailRefreshCount);
-  CurrentTick := GetTickCount;
-  if not AForce and (FThumbnailRefreshCount < 48) and
-    (Cardinal(CurrentTick - FLastThumbnailRefreshTick) < 1000) then
+  { Thumbnails are staged while scanning.  Do not redraw the visible list for
+    every image; that is the source of icon-view flicker. }
+  if AForce and not Assigned(FScanWorker) and
+    (FThumbnailQueuePosition >= FThumbnailQueue.Count) then
+    PublishThumbnails;
+end;
+
+procedure TFrmVisualFileManager.PublishThumbnails;
+begin
+  if not FThumbnailImagesDirty then
     Exit;
 
   if FileList.HandleAllocated then
-  begin
-    SendMessage(FileList.Handle, WM_SETREDRAW, 1, 0);
-    FileList.Invalidate;
+    SendMessage(FileList.Handle, WM_SETREDRAW, 0, 0);
+  try
+    FileList.LargeImages := nil;
+    ThumbnailImages.Assign(ThumbnailStagingImages);
+    FileList.LargeImages := ThumbnailImages;
+    FThumbnailImagesDirty := False;
+  finally
+    if FileList.HandleAllocated then
+    begin
+      SendMessage(FileList.Handle, WM_SETREDRAW, 1, 0);
+      FileList.Invalidate;
+    end;
   end;
-  FThumbnailRefreshCount := 0;
-  FLastThumbnailRefreshTick := CurrentTick;
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
@@ -532,7 +546,6 @@ begin
   ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
   ThumbnailTimer.Enabled := False;
-  RefreshThumbnails(True);
   FileList.Items.Count := 0;
   FFiles.Clear;
   FVisibleItems.Clear;
@@ -540,6 +553,8 @@ begin
   FThumbnailQueuePosition := 0;
   FThumbnailIndexes.Clear;
   ThumbnailImages.Clear;
+  ThumbnailStagingImages.Clear;
+  FThumbnailImagesDirty := False;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
     AMediaOnly);
@@ -898,10 +913,9 @@ begin
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
     Bitmap.Canvas.StretchDraw(Rect(0, 0, Bitmap.Width, Bitmap.Height),
       Picture.Graphic);
-    if FileList.HandleAllocated and (FThumbnailRefreshCount = 0) then
-      SendMessage(FileList.Handle, WM_SETREDRAW, 0, 0);
-    ImageIndex := ThumbnailImages.Add(Bitmap, nil);
+    ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
+    FThumbnailImagesDirty := True;
   except
   end;
   Bitmap.Free;
@@ -911,9 +925,8 @@ end;
 procedure TFrmVisualFileManager.RedrawThumbnailItem(
   const AFileIndex: Integer);
 begin
-  { Avoid a separate LVM_REDRAWITEMS message for every image.  In icon view
-    that repaints the list repeatedly and produces visible flicker. }
-  RefreshThumbnails(False);
+  { Image is held in the staging list.  The visible image list is replaced
+    once after the queue completes, so no per-item redraw is needed. }
 end;
 
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
@@ -926,8 +939,6 @@ begin
   begin
     if not FVideoWorker.IsCompleted then
     begin
-      if FThumbnailRefreshCount > 0 then
-        RefreshThumbnails(True);
       ThumbnailTimer.Enabled := True;
       Exit;
     end;
@@ -937,7 +948,7 @@ begin
   if FThumbnailQueuePosition >= FThumbnailQueue.Count then
   begin
     if not Assigned(FScanWorker) then
-      RefreshThumbnails(True);
+      PublishThumbnails;
     Exit;
   end;
 
@@ -956,7 +967,7 @@ begin
     (FThumbnailQueuePosition < FThumbnailQueue.Count) then
     ThumbnailTimer.Enabled := True
   else if not Assigned(FScanWorker) then
-    RefreshThumbnails(True);
+    PublishThumbnails;
 end;
 
 procedure TFrmVisualFileManager.FileListData(Sender: TObject;
