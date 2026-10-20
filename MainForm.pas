@@ -47,6 +47,7 @@ type
     FFileName: string;
     FOutputFile: string;
     FSuccess: Boolean;
+    FErrorText: string;
   protected
     procedure Execute; override;
   public
@@ -54,6 +55,7 @@ type
       AOutputFile: string);
     property Index: Integer read FIndex;
     property Success: Boolean read FSuccess;
+    property ErrorText: string read FErrorText;
   end;
 
   TFrmVisualFileManager = class(TForm)
@@ -128,13 +130,30 @@ var
   CurrentSort: Integer;
 
 function FfmpegExecutable: string;
+var
+  ApplicationFolder, Candidate: string;
+  Files: TArray<string>;
 begin
-  Result := TPath.Combine(ExtractFilePath(ParamStr(0)), 'ffmpeg.exe');
-  if not FileExists(Result) then
+  Result := '';
+  ApplicationFolder := ExtractFilePath(ParamStr(0));
+  Candidate := TPath.Combine(ApplicationFolder, 'ffmpeg.exe');
+  if FileExists(Candidate) then
+    Exit(Candidate);
+  Candidate := TPath.Combine(ApplicationFolder, 'ffmpeg\\bin\\ffmpeg.exe');
+  if FileExists(Candidate) then
+    Exit(Candidate);
+  try
+    Files := TDirectory.GetFiles(ApplicationFolder, 'ffmpeg.exe',
+      TSearchOption.soAllDirectories);
+    if Length(Files) > 0 then
+      Result := Files[0];
+  except
     Result := '';
+  end;
 end;
 
-function ExtractVideoFrame(const AFileName, AOutputFile: string): Boolean;
+function ExtractVideoFrame(const AFileName, AOutputFile: string;
+  out AErrorText: string): Boolean;
 var
   StartupInfo: TStartupInfo;
   ProcessInfo: TProcessInformation;
@@ -142,9 +161,13 @@ var
   CommandLine, FfmpegFile: string;
 begin
   Result := False;
+  AErrorText := '';
   FfmpegFile := FfmpegExecutable;
   if FfmpegFile = '' then
+  begin
+    AErrorText := 'ffmpeg.exe uygulama klasorunde bulunamadi.';
     Exit;
+  end;
   if FileExists(AOutputFile) then
     DeleteFile(AOutputFile);
   CommandLine := '"' + FfmpegFile + '" -y -ss 00:00:00.500 -i "' +
@@ -160,11 +183,16 @@ begin
   ZeroMemory(@ProcessInfo, SizeOf(ProcessInfo));
   if not CreateProcess(nil, PChar(CommandLine), nil, nil, False,
     CREATE_NO_WINDOW, nil, nil, StartupInfo, ProcessInfo) then
+  begin
+    AErrorText := SysErrorMessage(GetLastError);
     Exit;
+  end;
   try
     WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
     GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
     Result := (ExitCode = 0) and FileExists(AOutputFile);
+    if not Result then
+      AErrorText := 'FFmpeg cikis kodu: ' + IntToStr(ExitCode);
   finally
     CloseHandle(ProcessInfo.hThread);
     CloseHandle(ProcessInfo.hProcess);
@@ -184,7 +212,7 @@ end;
 procedure TVideoThumbnailWorker.Execute;
 begin
   if not Terminated then
-    FSuccess := ExtractVideoFrame(FFileName, FOutputFile);
+    FSuccess := ExtractVideoFrame(FFileName, FOutputFile, FErrorText);
 end;
 
 constructor TFileScanWorker.Create(const ARootFolder, AThumbnailFolder: string;
@@ -726,6 +754,8 @@ begin
   FVideoWorker := nil;
   if (Worker.Index >= 0) and (Worker.Index < FFiles.Count) then
     LoadOrCreateThumbnail(Worker.Index);
+  if not Worker.Success then
+    StatusLabel.Caption := 'MP4 kare cikarilamadi: ' + Worker.ErrorText;
   RedrawThumbnailItem(Worker.Index);
   Worker.Free;
   if FThumbnailQueuePosition < FThumbnailQueue.Count then
