@@ -67,6 +67,8 @@ type
     FolderEdit: TEdit;
     BrowseButton: TButton;
     ScanButton: TButton;
+    StopButton: TButton;
+    ClickModeBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -77,8 +79,11 @@ type
     ScanTimer: TTimer;
     ThumbnailTimer: TTimer;
     ThumbnailImages: TImageList;
+    procedure FormShow(Sender: TObject);
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
+    procedure StopClick(Sender: TObject);
+    procedure ClickModeChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -87,6 +92,7 @@ type
     procedure ScanTimerTick(Sender: TObject);
     procedure ThumbnailTimerTick(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
+    procedure FileListClick(Sender: TObject);
     procedure FileListDblClick(Sender: TObject);
   private
     FFiles: TList<TFileEntry>;
@@ -100,10 +106,15 @@ type
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
     FLastThumbnailRefreshTick: Cardinal;
+    FPendingScanFolder: string;
+    FPendingMediaOnly: Boolean;
+    FStartupScanDone: Boolean;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
+    procedure StartScan(const AFolder: string; const AMediaOnly: Boolean);
+    procedure OpenSelectedFile;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
     procedure QueueThumbnail(const AIndex: Integer);
@@ -445,7 +456,7 @@ procedure TFrmVisualFileManager.LoadSettings;
 var
   Ini: TIniFile;
   SavedFolder: string;
-  SavedView: Integer;
+  SavedView, SavedClickMode: Integer;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -458,6 +469,11 @@ begin
       ViewBox.ItemIndex := SavedView
     else
       ViewBox.ItemIndex := 0;
+    SavedClickMode := Ini.ReadInteger('General', 'ClickMode', 0);
+    if (SavedClickMode >= 0) and (SavedClickMode < ClickModeBox.Items.Count) then
+      ClickModeBox.ItemIndex := SavedClickMode
+    else
+      ClickModeBox.ItemIndex := 0;
   finally
     Ini.Free;
   end;
@@ -472,6 +488,7 @@ begin
   try
     Ini.WriteString('General', 'LastFolder', FolderEdit.Text);
     Ini.WriteInteger('General', 'ViewMode', ViewBox.ItemIndex);
+    Ini.WriteInteger('General', 'ClickMode', ClickModeBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -488,9 +505,46 @@ begin
     Exit;
 
   if FileList.HandleAllocated then
+  begin
+    SendMessage(FileList.Handle, WM_SETREDRAW, 1, 0);
     FileList.Invalidate;
+  end;
   FThumbnailRefreshCount := 0;
   FLastThumbnailRefreshTick := CurrentTick;
+end;
+
+procedure TFrmVisualFileManager.FormShow(Sender: TObject);
+begin
+  if FStartupScanDone then
+    Exit;
+  FStartupScanDone := True;
+  if DirectoryExists(FolderEdit.Text) then
+    ScanClick(nil);
+end;
+
+procedure TFrmVisualFileManager.StartScan(const AFolder: string;
+  const AMediaOnly: Boolean);
+begin
+  FRootFolder := ExcludeTrailingPathDelimiter(AFolder);
+  FThumbnailFolder := TPath.Combine(FRootFolder, 'thumbnail');
+  ForceDirectories(FThumbnailFolder);
+  ScanTimer.Enabled := False;
+  SearchTimer.Enabled := False;
+  ThumbnailTimer.Enabled := False;
+  RefreshThumbnails(True);
+  FileList.Items.Count := 0;
+  FFiles.Clear;
+  FVisibleItems.Clear;
+  FThumbnailQueue.Clear;
+  FThumbnailQueuePosition := 0;
+  FThumbnailIndexes.Clear;
+  ThumbnailImages.Clear;
+  StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
+  FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
+    AMediaOnly);
+  FScanWorker.Start;
+  ScanTimer.Enabled := True;
+  StopButton.Enabled := True;
 end;
 
 procedure TFrmVisualFileManager.BrowseClick(Sender: TObject);
@@ -503,54 +557,50 @@ begin
 end;
 
 procedure TFrmVisualFileManager.ScanClick(Sender: TObject);
+var
+  RequestedFolder: string;
 begin
-  if Assigned(FVideoWorker) then
-  begin
-    StatusLabel.Caption := 'Video kucuk resmi hazirlaniyor. Lutfen bekleyin.';
-    Exit;
-  end;
-  if Assigned(FScanWorker) then
-  begin
-    FScanWorker.Terminate;
-    StatusLabel.Caption := 'Onceki tarama durduruluyor...';
-    Exit;
-  end;
-  if not DirectoryExists(FolderEdit.Text) then
+  RequestedFolder := ExcludeTrailingPathDelimiter(FolderEdit.Text);
+  if not DirectoryExists(RequestedFolder) then
   begin
     ShowMessage('Gecerli bir klasor secin.');
     Exit;
   end;
-  if Assigned(FVideoWorker) then
+
+  if Assigned(FScanWorker) then
   begin
-    FVideoWorker.OnTerminate := nil;
-    FVideoWorker.Terminate;
-    FVideoWorker.WaitFor;
-    FVideoWorker.Free;
-    FVideoWorker := nil;
+    FPendingScanFolder := RequestedFolder;
+    FPendingMediaOnly := FilterBox.ItemIndex = 0;
+    FScanWorker.Terminate;
+    StopButton.Enabled := False;
+    StatusLabel.Caption := 'Onceki tarama durduruluyor, yeni tarama bekliyor...';
+    Exit;
   end;
-  FRootFolder := ExcludeTrailingPathDelimiter(FolderEdit.Text);
-  FThumbnailFolder := TPath.Combine(FRootFolder, 'thumbnail');
-  ForceDirectories(FThumbnailFolder);
-  ScanTimer.Enabled := False;
-  SearchTimer.Enabled := False;
-  ThumbnailTimer.Enabled := False;
-  FileList.Items.Count := 0;
-  FFiles.Clear;
-  FVisibleItems.Clear;
-  FThumbnailQueue.Clear;
-  FThumbnailQueuePosition := 0;
-  FThumbnailIndexes.Clear;
-  ThumbnailImages.Clear;
-  StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
-  FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
-    FilterBox.ItemIndex = 0);
-  FScanWorker.Start;
-  ScanTimer.Enabled := True;
+
+  StartScan(RequestedFolder, FilterBox.ItemIndex = 0);
+end;
+
+procedure TFrmVisualFileManager.StopClick(Sender: TObject);
+begin
+  FPendingScanFolder := '';
+  if Assigned(FScanWorker) then
+  begin
+    FScanWorker.Terminate;
+    StopButton.Enabled := False;
+    StatusLabel.Caption := 'Tarama durduruluyor...';
+  end;
+end;
+
+procedure TFrmVisualFileManager.ClickModeChange(Sender: TObject);
+begin
+  SaveSettings;
 end;
 
 procedure TFrmVisualFileManager.ScanTimerTick(Sender: TObject);
 var
   PreviousCount, Added: Integer;
+  NextFolder: string;
+  NextMediaOnly: Boolean;
 begin
   if not Assigned(FScanWorker) then
   begin
@@ -558,7 +608,7 @@ begin
     Exit;
   end;
   PreviousCount := FFiles.Count;
-  Added := FScanWorker.TakeBatch(FFiles, 250);
+  Added := FScanWorker.TakeBatch(FFiles, 100);
   if (Added > 0) and (Trim(SearchEdit.Text) = '') and
     (SortBox.ItemIndex = 0) then
   begin
@@ -579,7 +629,15 @@ begin
     FScanWorker.WaitFor;
     FScanWorker.Free;
     FScanWorker := nil;
-    Render;
+    StopButton.Enabled := False;
+
+    NextFolder := FPendingScanFolder;
+    NextMediaOnly := FPendingMediaOnly;
+    FPendingScanFolder := '';
+    if NextFolder <> '' then
+      StartScan(NextFolder, NextMediaOnly)
+    else
+      Render;
   end;
 end;
 
@@ -835,6 +893,8 @@ begin
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
     Bitmap.Canvas.StretchDraw(Rect(0, 0, Bitmap.Width, Bitmap.Height),
       Picture.Graphic);
+    if FileList.HandleAllocated and (FThumbnailRefreshCount = 0) then
+      SendMessage(FileList.Handle, WM_SETREDRAW, 0, 0);
     ImageIndex := ThumbnailImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
   except
@@ -913,7 +973,7 @@ begin
     Item.ImageIndex := -1;
 end;
 
-procedure TFrmVisualFileManager.FileListDblClick(Sender: TObject);
+procedure TFrmVisualFileManager.OpenSelectedFile;
 var
   Position, Index: Integer;
 begin
@@ -925,6 +985,18 @@ begin
   Index := FVisibleItems[Position];
   ShellExecute(Handle, 'open', PChar(FFiles[Index].FullName), nil, nil,
     SW_SHOWNORMAL);
+end;
+
+procedure TFrmVisualFileManager.FileListClick(Sender: TObject);
+begin
+  if ClickModeBox.ItemIndex = 1 then
+    OpenSelectedFile;
+end;
+
+procedure TFrmVisualFileManager.FileListDblClick(Sender: TObject);
+begin
+  if ClickModeBox.ItemIndex = 0 then
+    OpenSelectedFile;
 end;
 
 end.
