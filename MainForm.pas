@@ -48,11 +48,15 @@ type
     FOutputFile: string;
     FSuccess: Boolean;
     FErrorText: string;
+    FLock: TCriticalSection;
+    FCompleted: Boolean;
   protected
     procedure Execute; override;
   public
     constructor Create(const AIndex: Integer; const AFileName,
       AOutputFile: string);
+    destructor Destroy; override;
+    function IsCompleted: Boolean;
     property Index: Integer read FIndex;
     property Success: Boolean read FSuccess;
     property ErrorText: string read FErrorText;
@@ -82,7 +86,6 @@ type
     procedure FilterChange(Sender: TObject);
     procedure ScanTimerTick(Sender: TObject);
     procedure ThumbnailTimerTick(Sender: TObject);
-    procedure VideoWorkerDone(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListDblClick(Sender: TObject);
   private
@@ -99,6 +102,7 @@ type
     procedure AddVisibleFile(const AIndex: Integer);
     procedure QueueThumbnail(const AIndex: Integer);
     procedure StartVideoThumbnail(const AIndex: Integer);
+    procedure CompleteVideoThumbnail;
     function IsVideoFile(const AFile: TFileEntry): Boolean;
     procedure LoadOrCreateThumbnail(const AIndex: Integer);
     procedure RedrawThumbnailItem(const AFileIndex: Integer);
@@ -213,12 +217,38 @@ begin
   FIndex := AIndex;
   FFileName := AFileName;
   FOutputFile := AOutputFile;
+  FLock := TCriticalSection.Create;
+end;
+
+destructor TVideoThumbnailWorker.Destroy;
+begin
+  FLock.Free;
+  inherited;
+end;
+
+function TVideoThumbnailWorker.IsCompleted: Boolean;
+begin
+  FLock.Acquire;
+  try
+    Result := FCompleted;
+  finally
+    FLock.Release;
+  end;
 end;
 
 procedure TVideoThumbnailWorker.Execute;
 begin
-  if not Terminated then
-    FSuccess := ExtractVideoFrame(FFileName, FOutputFile, FErrorText);
+  try
+    if not Terminated then
+      FSuccess := ExtractVideoFrame(FFileName, FOutputFile, FErrorText);
+  finally
+    FLock.Acquire;
+    try
+      FCompleted := True;
+    finally
+      FLock.Release;
+    end;
+  end;
 end;
 
 constructor TFileScanWorker.Create(const ARootFolder, AThumbnailFolder: string;
@@ -545,8 +575,27 @@ procedure TFrmVisualFileManager.StartVideoThumbnail(const AIndex: Integer);
 begin
   FVideoWorker := TVideoThumbnailWorker.Create(AIndex,
     FFiles[AIndex].FullName, ThumbnailFileName(FFiles[AIndex]));
-  FVideoWorker.OnTerminate := VideoWorkerDone;
   FVideoWorker.Start;
+end;
+
+procedure TFrmVisualFileManager.CompleteVideoThumbnail;
+var
+  Worker: TVideoThumbnailWorker;
+  FileIndex: Integer;
+begin
+  Worker := FVideoWorker;
+  if not Assigned(Worker) or not Worker.IsCompleted then
+    Exit;
+
+  FVideoWorker := nil;
+  Worker.WaitFor;
+  FileIndex := Worker.Index;
+  if (FileIndex >= 0) and (FileIndex < FFiles.Count) then
+    LoadOrCreateThumbnail(FileIndex);
+  if not Worker.Success then
+    StatusLabel.Caption := 'MP4 kare cikarilamadi: ' + Worker.ErrorText;
+  RedrawThumbnailItem(FileIndex);
+  Worker.Free;
 end;
 
 procedure TFrmVisualFileManager.Render;
@@ -745,9 +794,20 @@ var
   FileIndex: Integer;
 begin
   ThumbnailTimer.Enabled := False;
-  if Assigned(FVideoWorker) or
-    (FThumbnailQueuePosition >= FThumbnailQueue.Count) then
+
+  if Assigned(FVideoWorker) then
+  begin
+    if not FVideoWorker.IsCompleted then
+    begin
+      ThumbnailTimer.Enabled := True;
+      Exit;
+    end;
+    CompleteVideoThumbnail;
+  end;
+
+  if FThumbnailQueuePosition >= FThumbnailQueue.Count then
     Exit;
+
   FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
   Inc(FThumbnailQueuePosition);
   if IsVideoFile(FFiles[FileIndex]) and
@@ -757,24 +817,10 @@ begin
   begin
     LoadOrCreateThumbnail(FileIndex);
     RedrawThumbnailItem(FileIndex);
-    if FThumbnailQueuePosition < FThumbnailQueue.Count then
-      ThumbnailTimer.Enabled := True;
   end;
-end;
 
-procedure TFrmVisualFileManager.VideoWorkerDone(Sender: TObject);
-var
-  Worker: TVideoThumbnailWorker;
-begin
-  Worker := TVideoThumbnailWorker(Sender);
-  FVideoWorker := nil;
-  if (Worker.Index >= 0) and (Worker.Index < FFiles.Count) then
-    LoadOrCreateThumbnail(Worker.Index);
-  if not Worker.Success then
-    StatusLabel.Caption := 'MP4 kare cikarilamadi: ' + Worker.ErrorText;
-  RedrawThumbnailItem(Worker.Index);
-  Worker.Free;
-  if FThumbnailQueuePosition < FThumbnailQueue.Count then
+  if Assigned(FVideoWorker) or
+    (FThumbnailQueuePosition < FThumbnailQueue.Count) then
     ThumbnailTimer.Enabled := True;
 end;
 
