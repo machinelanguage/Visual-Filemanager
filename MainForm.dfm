@@ -186,7 +186,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
   end
   object ThumbnailTimer: TTimer
     Enabled = False
-    Interval = 100
+    Interval = 30
     OnTimer = ThumbnailTimerTick
     Left = 1120
     Top = 16
