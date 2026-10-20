@@ -106,6 +106,7 @@ type
     FThumbnailQueuePosition: Integer;
     FThumbnailIndexes: TDictionary<string, Integer>;
     FQueuedThumbnailFiles: TDictionary<string, Boolean>;
+    FPlaceholderIndexes: TDictionary<string, Integer>;
     FRootFolder: string;
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
@@ -119,6 +120,9 @@ type
     function SettingsFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
     procedure PublishThumbnails;
+    procedure PreparePlaceholderImages;
+    function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
+    function PlaceholderKey(const AFile: TFileEntry): string;
     procedure StartScan(const AFolder: string; const AMediaOnly: Boolean);
     procedure OpenSelectedFile;
     procedure Render;
@@ -426,6 +430,7 @@ begin
   FThumbnailQueue := TList<Integer>.Create;
   FThumbnailIndexes := TDictionary<string, Integer>.Create;
   FQueuedThumbnailFiles := TDictionary<string, Boolean>.Create;
+  FPlaceholderIndexes := TDictionary<string, Integer>.Create;
   LoadSettings;
 end;
 
@@ -448,6 +453,7 @@ begin
     FVideoWorker.WaitFor;
     FVideoWorker.Free;
   end;
+  FPlaceholderIndexes.Free;
   FQueuedThumbnailFiles.Free;
   FThumbnailIndexes.Free;
   FThumbnailQueue.Free;
@@ -542,6 +548,64 @@ begin
     ScanClick(nil);
 end;
 
+function TFrmVisualFileManager.PlaceholderKey(
+  const AFile: TFileEntry): string;
+begin
+  if MatchText(AFile.Extension, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']) then
+    Result := 'image'
+  else if MatchText(AFile.Extension, ['.mp4', '.avi', '.mkv', '.mov', '.wmv']) then
+    Result := 'video'
+  else if SameText(AFile.Extension, '.pdf') then
+    Result := 'pdf'
+  else if MatchText(AFile.Extension, ['.mp3', '.wav', '.flac']) then
+    Result := 'audio'
+  else
+    Result := 'file';
+end;
+
+function TFrmVisualFileManager.PlaceholderImageIndex(
+  const AFile: TFileEntry): Integer;
+begin
+  if not FPlaceholderIndexes.TryGetValue(PlaceholderKey(AFile), Result) then
+    Result := -1;
+end;
+
+procedure TFrmVisualFileManager.PreparePlaceholderImages;
+  procedure AddPlaceholder(const AKey, AText: string; const AColor: TColor);
+  var
+    Bitmap: TBitmap;
+    ImageIndex: Integer;
+  begin
+    Bitmap := TBitmap.Create;
+    try
+      Bitmap.SetSize(160, 120);
+      Bitmap.Canvas.Brush.Color := clWhite;
+      Bitmap.Canvas.FillRect(Rect(0, 0, 160, 120));
+      Bitmap.Canvas.Brush.Color := AColor;
+      Bitmap.Canvas.FillRect(Rect(0, 0, 160, 26));
+      Bitmap.Canvas.Font.Color := AColor;
+      Bitmap.Canvas.Font.Style := [fsBold];
+      Bitmap.Canvas.Font.Size := 16;
+      Bitmap.Canvas.TextOut(14, 46, AText);
+      Bitmap.Canvas.Font.Style := [];
+      Bitmap.Canvas.Font.Size := 8;
+      Bitmap.Canvas.Font.Color := clGray;
+      Bitmap.Canvas.TextOut(14, 82, 'Kucuk resim hazirlaniyor');
+      ImageIndex := ThumbnailImages.Add(Bitmap, nil);
+      ThumbnailStagingImages.Add(Bitmap, nil);
+      FPlaceholderIndexes.Add(AKey, ImageIndex);
+    finally
+      Bitmap.Free;
+    end;
+  end;
+begin
+  AddPlaceholder('image', 'RESIM', $00C07020);
+  AddPlaceholder('video', 'VIDEO', $003040C0);
+  AddPlaceholder('pdf', 'PDF', $002060C0);
+  AddPlaceholder('audio', 'SES', $008040C0);
+  AddPlaceholder('file', 'DOSYA', $00606060);
+end;
+
 procedure TFrmVisualFileManager.StartScan(const AFolder: string;
   const AMediaOnly: Boolean);
 begin
@@ -558,8 +622,10 @@ begin
   FThumbnailQueuePosition := 0;
   FThumbnailIndexes.Clear;
   FQueuedThumbnailFiles.Clear;
+  FPlaceholderIndexes.Clear;
   ThumbnailImages.Clear;
   ThumbnailStagingImages.Clear;
+  PreparePlaceholderImages;
   FThumbnailImagesDirty := False;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
@@ -1034,7 +1100,7 @@ begin
   if FThumbnailIndexes.TryGetValue(FileEntry.FullName, ImageIndex) then
     Item.ImageIndex := ImageIndex
   else
-    Item.ImageIndex := -1;
+    Item.ImageIndex := PlaceholderImageIndex(FileEntry);
   if ViewBox.ItemIndex = 1 then
     QueueThumbnailPage(Item.Index);
 end;
