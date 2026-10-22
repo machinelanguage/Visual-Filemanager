@@ -1416,8 +1416,9 @@ end;
 procedure TFrmVisualFileManager.MonitorTimerTick(Sender: TObject);
 var
   Changes: TList<string>;
-  I, OldCount: Integer;
+  I, J, OldCount: Integer;
   Query: string;
+  AlreadyVisible: Boolean;
 begin
   if not Assigned(FMonitorWorker) then
   begin
@@ -1444,11 +1445,33 @@ begin
     for I := OldCount to FFiles.Count - 1 do
     begin
       if (Query = '') or ContainsText(FFiles[I].DisplayName, Query) then
-        AddVisibleFile(I);
+      begin
+        { The directory notification may be repeated by Windows. Keep the
+          virtual list unique even if a duplicate record reaches this point. }
+        AlreadyVisible := False;
+        for J := 0 to FVisibleItems.Count - 1 do
+          if SameText(FFiles[FVisibleItems[J]].FullName, FFiles[I].FullName) then
+          begin
+            AlreadyVisible := True;
+            Break;
+          end;
+        if not AlreadyVisible then
+          AddVisibleFile(I);
+      end;
       QueueThumbnail(I);
     end;
     SortVisibleByNewest;
+
+    { Sorting moves the old virtual indices. Explicitly invalidate those
+      OwnerData rows; changing only Items.Count leaves stale cached captions
+      and images on some VCL/Windows combinations. }
     FileList.Items.Count := FVisibleItems.Count;
+    if FileList.HandleAllocated and (FVisibleItems.Count > 0) then
+    begin
+      SendMessage(FileList.Handle, LVM_REDRAWITEMS, 0,
+        FVisibleItems.Count - 1);
+      FileList.Invalidate;
+    end;
     if FThumbnailQueuePosition < FThumbnailQueue.Count then
       ThumbnailTimer.Enabled := True;
     StatusLabel.Caption := Format('%d yeni dosya algilandi.',
