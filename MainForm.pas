@@ -13,6 +13,14 @@ type
   TFileTypeFilter = (ftMediaPdf, ftAllFiles, ftImages, ftVideos, ftPdf,
     ftAudio);
 
+  TNotifyInfo = packed record
+    NextEntryOffset: DWORD;
+    Action: DWORD;
+    FileNameLength: DWORD;
+    FileName: array[0..0] of WideChar;
+  end;
+  PNotifyInfo = ^TNotifyInfo;
+
   TFileEntry = record
     FullName: string;
     DisplayName: string;
@@ -43,6 +51,23 @@ type
     function TakeBatch(const ADestination: TList<TFileEntry>;
       const AMaximum: Integer): Integer;
     function IsCompleted: Boolean;
+  end;
+
+  TDirectoryMonitorWorker = class(TThread)
+  private
+    FRootFolder: string;
+    FChanges: TList<string>;
+    FChangesLock: TCriticalSection;
+    FHandleLock: TCriticalSection;
+    FDirectoryHandle: THandle;
+    procedure AddChange(const AFileName: string);
+  protected
+    procedure Execute; override;
+  public
+    constructor Create(const ARootFolder: string);
+    destructor Destroy; override;
+    procedure Stop;
+    function TakeChanges(const ADestination: TList<string>): Integer;
   end;
 
   TVideoThumbnailWorker = class(TThread)
@@ -81,6 +106,7 @@ type
     SearchTimer: TTimer;
     ScanTimer: TTimer;
     ThumbnailTimer: TTimer;
+    MonitorTimer: TTimer;
     ThumbnailImages: TImageList;
     ThumbnailStagingImages: TImageList;
     procedure FormShow(Sender: TObject);
@@ -96,6 +122,7 @@ type
     procedure FilterChange(Sender: TObject);
     procedure ScanTimerTick(Sender: TObject);
     procedure ThumbnailTimerTick(Sender: TObject);
+    procedure MonitorTimerTick(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListClick(Sender: TObject);
     procedure FileListMouseEnter(Sender: TObject);
@@ -104,12 +131,14 @@ type
     FFiles: TList<TFileEntry>;
     FScanWorker: TFileScanWorker;
     FVideoWorker: TVideoThumbnailWorker;
+    FMonitorWorker: TDirectoryMonitorWorker;
     FVisibleItems: TList<Integer>;
     FThumbnailQueue: TList<Integer>;
     FThumbnailQueuePosition: Integer;
     FThumbnailIndexes: TDictionary<string, Integer>;
     FQueuedThumbnailFiles: TDictionary<string, Boolean>;
     FPlaceholderIndexes: TDictionary<string, Integer>;
+    FKnownFiles: TDictionary<string, Boolean>;
     FRootFolder: string;
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
@@ -130,6 +159,9 @@ type
     function SelectedFileFilter: TFileTypeFilter;
     procedure StartScan(const AFolder: string;
       const AFileFilter: TFileTypeFilter);
+    procedure StartFolderMonitor;
+    procedure StopFolderMonitor;
+    procedure AddMonitoredFile(const AFileName: string);
     procedure OpenSelectedFile;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
@@ -245,6 +277,131 @@ begin
   end;
 end;
 
+constructor TDirectoryMonitorWorker.Create(const ARootFolder: string);
+begin
+  inherited Create(True);
+  FreeOnTerminate := False;
+  FRootFolder := ARootFolder;
+  FDirectoryHandle := INVALID_HANDLE_VALUE;
+  FChanges := TList<string>.Create;
+  FChangesLock := TCriticalSection.Create;
+  FHandleLock := TCriticalSection.Create;
+end;
+
+destructor TDirectoryMonitorWorker.Destroy;
+begin
+  Stop;
+  FHandleLock.Free;
+  FChangesLock.Free;
+  FChanges.Free;
+  inherited;
+end;
+
+procedure TDirectoryMonitorWorker.AddChange(const AFileName: string);
+begin
+  FChangesLock.Acquire;
+  try
+    FChanges.Add(AFileName);
+  finally
+    FChangesLock.Release;
+  end;
+end;
+
+function TDirectoryMonitorWorker.TakeChanges(
+  const ADestination: TList<string>): Integer;
+var
+  I: Integer;
+begin
+  FChangesLock.Acquire;
+  try
+    Result := FChanges.Count;
+    for I := 0 to FChanges.Count - 1 do
+      ADestination.Add(FChanges[I]);
+    FChanges.Clear;
+  finally
+    FChangesLock.Release;
+  end;
+end;
+
+procedure TDirectoryMonitorWorker.Stop;
+var
+  DirectoryHandle: THandle;
+begin
+  Terminate;
+  FHandleLock.Acquire;
+  try
+    DirectoryHandle := FDirectoryHandle;
+  finally
+    FHandleLock.Release;
+  end;
+  if DirectoryHandle <> INVALID_HANDLE_VALUE then
+    CancelIoEx(DirectoryHandle, nil);
+end;
+
+procedure TDirectoryMonitorWorker.Execute;
+var
+  DirectoryHandle, EventHandle: THandle;
+  Buffer: array[0..16383] of Byte;
+  Overlapped: TOverlapped;
+  BytesReturned: DWORD;
+  NotifyInfo: PNotifyInfo;
+  ChangedName: string;
+begin
+  DirectoryHandle := CreateFile(PChar(FRootFolder), FILE_LIST_DIRECTORY,
+    FILE_SHARE_READ or FILE_SHARE_WRITE or FILE_SHARE_DELETE, nil, OPEN_EXISTING,
+    FILE_FLAG_BACKUP_SEMANTICS or FILE_FLAG_OVERLAPPED, 0);
+  if DirectoryHandle = INVALID_HANDLE_VALUE then
+    Exit;
+
+  FHandleLock.Acquire;
+  try
+    FDirectoryHandle := DirectoryHandle;
+  finally
+    FHandleLock.Release;
+  end;
+  EventHandle := CreateEvent(nil, True, False, nil);
+  try
+    while not Terminated do
+    begin
+      ZeroMemory(@Overlapped, SizeOf(Overlapped));
+      Overlapped.hEvent := EventHandle;
+      ResetEvent(EventHandle);
+      BytesReturned := 0;
+      if not ReadDirectoryChangesW(DirectoryHandle, @Buffer[0], SizeOf(Buffer),
+        True, FILE_NOTIFY_CHANGE_FILE_NAME, @BytesReturned, @Overlapped, nil) then
+        Exit;
+      WaitForSingleObject(EventHandle, INFINITE);
+      if Terminated then
+        Exit;
+      if not GetOverlappedResult(DirectoryHandle, Overlapped, BytesReturned,
+        False) then
+        Continue;
+      NotifyInfo := PNotifyInfo(@Buffer[0]);
+      repeat
+        if (NotifyInfo.Action = FILE_ACTION_ADDED) or
+          (NotifyInfo.Action = FILE_ACTION_RENAMED_NEW_NAME) then
+        begin
+          SetString(ChangedName, PWideChar(@NotifyInfo.FileName[0]),
+            NotifyInfo.FileNameLength div SizeOf(WideChar));
+          AddChange(TPath.Combine(FRootFolder, ChangedName));
+        end;
+        if NotifyInfo.NextEntryOffset = 0 then
+          Break;
+        NotifyInfo := PNotifyInfo(PByte(NotifyInfo) + NotifyInfo.NextEntryOffset);
+      until False;
+    end;
+  finally
+    CloseHandle(EventHandle);
+    FHandleLock.Acquire;
+    try
+      FDirectoryHandle := INVALID_HANDLE_VALUE;
+    finally
+      FHandleLock.Release;
+    end;
+    CloseHandle(DirectoryHandle);
+  end;
+end;
+
 constructor TVideoThumbnailWorker.Create(const AIndex: Integer;
   const AFileName, AOutputFile: string);
 begin
@@ -287,12 +444,13 @@ begin
   inherited;
 end;
 
-function TFileScanWorker.IsIncludedFile(const AFileName: string): Boolean;
+function MatchesFileFilter(const AFileName: string;
+  const AFileFilter: TFileTypeFilter): Boolean;
 var
   Extension: string;
 begin
   Extension := LowerCase(ExtractFileExt(AFileName));
-  case FFileFilter of
+  case AFileFilter of
     ftAllFiles:
       Result := True;
     ftImages:
@@ -307,6 +465,11 @@ begin
     Result := MatchText(Extension, ['.pdf', '.jpg', '.jpeg', '.png', '.bmp',
       '.gif', '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.mp3', '.wav', '.flac']);
   end;
+end;
+
+function TFileScanWorker.IsIncludedFile(const AFileName: string): Boolean;
+begin
+  Result := MatchesFileFilter(AFileName, FFileFilter);
 end;
 
 procedure TFileScanWorker.AddFile(const AFileName: string;
@@ -438,6 +601,7 @@ begin
   FThumbnailIndexes := TDictionary<string, Integer>.Create;
   FQueuedThumbnailFiles := TDictionary<string, Boolean>.Create;
   FPlaceholderIndexes := TDictionary<string, Integer>.Create;
+  FKnownFiles := TDictionary<string, Boolean>.Create;
   LoadSettings;
 end;
 
@@ -447,6 +611,7 @@ begin
   ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
   ThumbnailTimer.Enabled := False;
+  StopFolderMonitor;
   if Assigned(FScanWorker) then
   begin
     FScanWorker.Terminate;
@@ -460,6 +625,7 @@ begin
     FVideoWorker.WaitFor;
     FVideoWorker.Free;
   end;
+  FKnownFiles.Free;
   FPlaceholderIndexes.Free;
   FQueuedThumbnailFiles.Free;
   FThumbnailIndexes.Free;
@@ -637,9 +803,61 @@ begin
   Result := TFileTypeFilter(FilterBox.ItemIndex);
 end;
 
+procedure TFrmVisualFileManager.StopFolderMonitor;
+begin
+  MonitorTimer.Enabled := False;
+  if Assigned(FMonitorWorker) then
+  begin
+    FMonitorWorker.Stop;
+    FMonitorWorker.WaitFor;
+    FMonitorWorker.Free;
+    FMonitorWorker := nil;
+  end;
+end;
+
+procedure TFrmVisualFileManager.StartFolderMonitor;
+begin
+  StopFolderMonitor;
+  if not DirectoryExists(FRootFolder) then
+    Exit;
+  FMonitorWorker := TDirectoryMonitorWorker.Create(FRootFolder);
+  FMonitorWorker.Start;
+  MonitorTimer.Enabled := True;
+end;
+
+procedure TFrmVisualFileManager.AddMonitoredFile(const AFileName: string);
+var
+  Search: TSearchRec;
+  Item: TFileEntry;
+begin
+  if not FileExists(AFileName) or
+    SameText(ExcludeTrailingPathDelimiter(ExtractFileDir(AFileName)),
+      ExcludeTrailingPathDelimiter(FThumbnailFolder)) or
+    not MatchesFileFilter(AFileName, SelectedFileFilter) or
+    FKnownFiles.ContainsKey(AFileName) then
+    Exit;
+  if FindFirst(AFileName, faAnyFile, Search) <> 0 then
+    Exit;
+  try
+    if (Search.Attr and faDirectory) <> 0 then
+      Exit;
+    Item.FullName := AFileName;
+    Item.DisplayName := ExtractFileName(AFileName);
+    Item.Extension := LowerCase(ExtractFileExt(AFileName));
+    Item.FolderName := ExtractFileDir(AFileName);
+    Item.Size := Int64(Search.Size);
+    Item.ModifiedAt := FileDateToDateTime(Search.Time);
+    FFiles.Add(Item);
+    FKnownFiles.Add(AFileName, True);
+  finally
+    FindClose(Search);
+  end;
+end;
+
 procedure TFrmVisualFileManager.StartScan(const AFolder: string;
   const AFileFilter: TFileTypeFilter);
 begin
+  StopFolderMonitor;
   FRootFolder := ExcludeTrailingPathDelimiter(AFolder);
   FThumbnailFolder := TPath.Combine(FRootFolder, 'thumbnail');
   ForceDirectories(FThumbnailFolder);
@@ -654,6 +872,7 @@ begin
   FThumbnailIndexes.Clear;
   FQueuedThumbnailFiles.Clear;
   FPlaceholderIndexes.Clear;
+  FKnownFiles.Clear;
   ThumbnailImages.Clear;
   ThumbnailStagingImages.Clear;
   PreparePlaceholderImages;
@@ -720,7 +939,7 @@ end;
 
 procedure TFrmVisualFileManager.ScanTimerTick(Sender: TObject);
 var
-  PreviousCount, Added: Integer;
+  PreviousCount, Added, I: Integer;
   NextFolder: string;
   NextFileFilter: TFileTypeFilter;
 begin
@@ -733,6 +952,8 @@ begin
   { Keep this UI-side batch intentionally small. File discovery remains in
     TFileScanWorker; this timer only merges already-discovered entries. }
   Added := FScanWorker.TakeBatch(FFiles, 25);
+  for I := PreviousCount to FFiles.Count - 1 do
+    FKnownFiles.AddOrSetValue(FFiles[I].FullName, True);
   if (Added > 0) and (Trim(SearchEdit.Text) = '') then
   begin
     while PreviousCount < FFiles.Count do
@@ -766,7 +987,10 @@ begin
     if NextFolder <> '' then
       StartScan(NextFolder, NextFileFilter)
     else
+    begin
       Render;
+      StartFolderMonitor;
+    end;
   end;
 end;
 
@@ -1145,6 +1369,34 @@ begin
     ThumbnailTimer.Enabled := True
   else
     PublishThumbnails;
+end;
+
+procedure TFrmVisualFileManager.MonitorTimerTick(Sender: TObject);
+var
+  Changes: TList<string>;
+  I, OldCount: Integer;
+begin
+  if not Assigned(FMonitorWorker) then
+  begin
+    MonitorTimer.Enabled := False;
+    Exit;
+  end;
+  Changes := TList<string>.Create;
+  try
+    FMonitorWorker.TakeChanges(Changes);
+    if Changes.Count = 0 then
+      Exit;
+    OldCount := FFiles.Count;
+    for I := 0 to Changes.Count - 1 do
+      AddMonitoredFile(Changes[I]);
+    if FFiles.Count > OldCount then
+    begin
+      Render;
+      StatusLabel.Caption := Format('%d yeni dosya algilandi.', [FFiles.Count - OldCount]);
+    end;
+  finally
+    Changes.Free;
+  end;
 end;
 
 procedure TFrmVisualFileManager.FileListData(Sender: TObject;
