@@ -1416,29 +1416,29 @@ end;
 procedure TFrmVisualFileManager.MonitorTimerTick(Sender: TObject);
 var
   Changes: TList<string>;
-  I, OldCount: Integer;
+  I: Integer;
 begin
   if not Assigned(FMonitorWorker) then
   begin
     MonitorTimer.Enabled := False;
     Exit;
   end;
+
   Changes := TList<string>.Create;
   try
     FMonitorWorker.TakeChanges(Changes);
-    if Changes.Count = 0 then
-      Exit;
-    OldCount := FFiles.Count;
     for I := 0 to Changes.Count - 1 do
-      AddMonitoredFile(Changes[I]);
-    RemoveDuplicateFiles;
-    if FFiles.Count > OldCount then
     begin
-      { Clear the virtual list cache first. Without this OwnerData ListView can
-        retain old display records during a monitor-driven refresh. }
-      FileList.Items.Count := 0;
-      Render;
-      StatusLabel.Caption := Format('%d yeni dosya algilandi.', [FFiles.Count - OldCount]);
+      if not SameText(ExcludeTrailingPathDelimiter(ExtractFileDir(Changes[I])),
+        ExcludeTrailingPathDelimiter(FThumbnailFolder)) then
+      begin
+        { A monitor notification can be repeated while a file is being
+          downloaded. Reuse the proven background scanner instead of adding
+          each notification directly to an OwnerData list. }
+        StatusLabel.Caption := 'Yeni dosya algilandi, arka planda yenileniyor...';
+        StartScan(FRootFolder, SelectedFileFilter);
+        Exit;
+      end;
     end;
   finally
     Changes.Free;
