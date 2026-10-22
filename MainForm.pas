@@ -201,6 +201,11 @@ var
   CurrentSort: Integer;
   CurrentGroupByFolder: Boolean;
 
+function CanonicalFileName(const AFileName: string): string;
+begin
+  Result := LowerCase(ExpandFileName(AFileName));
+end;
+
 function FfmpegExecutable: string;
 var
   ApplicationFolder, Candidate: string;
@@ -834,13 +839,23 @@ procedure TFrmVisualFileManager.AddMonitoredFile(const AFileName: string);
 var
   Search: TSearchRec;
   Item: TFileEntry;
+  FileKey: string;
+  I: Integer;
 begin
+  FileKey := CanonicalFileName(AFileName);
   if not FileExists(AFileName) or
     SameText(ExcludeTrailingPathDelimiter(ExtractFileDir(AFileName)),
       ExcludeTrailingPathDelimiter(FThumbnailFolder)) or
     not MatchesFileFilter(AFileName, SelectedFileFilter) or
-    FKnownFiles.ContainsKey(AFileName) then
+    FKnownFiles.ContainsKey(FileKey) then
     Exit;
+
+  { ReadDirectoryChangesW can report an add and a rename for one physical
+    file. The list check is a second guard against duplicate notifications. }
+  for I := 0 to FFiles.Count - 1 do
+    if SameText(FFiles[I].FullName, AFileName) then
+      Exit;
+
   if FindFirst(AFileName, faAnyFile, Search) <> 0 then
     Exit;
   try
@@ -853,7 +868,7 @@ begin
     Item.Size := Int64(Search.Size);
     Item.ModifiedAt := FileDateToDateTime(Search.Time);
     FFiles.Add(Item);
-    FKnownFiles.Add(AFileName, True);
+    FKnownFiles.Add(FileKey, True);
   finally
     FindClose(Search);
   end;
@@ -958,7 +973,7 @@ begin
     TFileScanWorker; this timer only merges already-discovered entries. }
   Added := FScanWorker.TakeBatch(FFiles, 25);
   for I := PreviousCount to FFiles.Count - 1 do
-    FKnownFiles.AddOrSetValue(FFiles[I].FullName, True);
+    FKnownFiles.AddOrSetValue(CanonicalFileName(FFiles[I].FullName), True);
   if (Added > 0) and (Trim(SearchEdit.Text) = '') then
   begin
     while PreviousCount < FFiles.Count do
