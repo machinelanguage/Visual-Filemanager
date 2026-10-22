@@ -162,6 +162,7 @@ type
     procedure StartFolderMonitor;
     procedure StopFolderMonitor;
     procedure AddMonitoredFile(const AFileName: string);
+    procedure RemoveDuplicateFiles;
     procedure OpenSelectedFile;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
@@ -1391,6 +1392,27 @@ begin
     PublishThumbnails;
 end;
 
+procedure TFrmVisualFileManager.RemoveDuplicateFiles;
+var
+  Seen: TDictionary<string, Boolean>;
+  I: Integer;
+  FileKey: string;
+begin
+  Seen := TDictionary<string, Boolean>.Create;
+  try
+    for I := FFiles.Count - 1 downto 0 do
+    begin
+      FileKey := CanonicalFileName(FFiles[I].FullName);
+      if Seen.ContainsKey(FileKey) then
+        FFiles.Delete(I)
+      else
+        Seen.Add(FileKey, True);
+    end;
+  finally
+    Seen.Free;
+  end;
+end;
+
 procedure TFrmVisualFileManager.MonitorTimerTick(Sender: TObject);
 var
   Changes: TList<string>;
@@ -1409,6 +1431,7 @@ begin
     OldCount := FFiles.Count;
     for I := 0 to Changes.Count - 1 do
       AddMonitoredFile(Changes[I]);
+    RemoveDuplicateFiles;
     if FFiles.Count > OldCount then
     begin
       Render;
