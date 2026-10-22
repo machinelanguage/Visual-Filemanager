@@ -552,6 +552,9 @@ begin
     FileList.LargeImages := nil;
     ThumbnailImages.Assign(ThumbnailStagingImages);
     FileList.LargeImages := ThumbnailImages;
+    { OwnerData lists cache item images. Resetting the virtual item count makes
+      OnData run now, instead of waiting for the final Render call. }
+    FileList.Items.Count := FVisibleItems.Count;
     FThumbnailImagesDirty := False;
   finally
     if FileList.HandleAllocated then
