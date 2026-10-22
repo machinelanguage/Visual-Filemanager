@@ -1416,7 +1416,8 @@ end;
 procedure TFrmVisualFileManager.MonitorTimerTick(Sender: TObject);
 var
   Changes: TList<string>;
-  I: Integer;
+  I, OldCount: Integer;
+  Query: string;
 begin
   if not Assigned(FMonitorWorker) then
   begin
@@ -1427,19 +1428,31 @@ begin
   Changes := TList<string>.Create;
   try
     FMonitorWorker.TakeChanges(Changes);
+    if Changes.Count = 0 then
+      Exit;
+
+    OldCount := FFiles.Count;
     for I := 0 to Changes.Count - 1 do
+      AddMonitoredFile(Changes[I]);
+
+    if FFiles.Count = OldCount then
+      Exit;
+
+    { Do not rebuild the OwnerData list here. Only append the genuinely new
+      records, which keeps the existing icon layout and virtual cache intact. }
+    Query := Trim(SearchEdit.Text);
+    for I := OldCount to FFiles.Count - 1 do
     begin
-      if not SameText(ExcludeTrailingPathDelimiter(ExtractFileDir(Changes[I])),
-        ExcludeTrailingPathDelimiter(FThumbnailFolder)) then
-      begin
-        { A monitor notification can be repeated while a file is being
-          downloaded. Reuse the proven background scanner instead of adding
-          each notification directly to an OwnerData list. }
-        StatusLabel.Caption := 'Yeni dosya algilandi, arka planda yenileniyor...';
-        StartScan(FRootFolder, SelectedFileFilter);
-        Exit;
-      end;
+      if (Query = '') or ContainsText(FFiles[I].DisplayName, Query) then
+        AddVisibleFile(I);
+      QueueThumbnail(I);
     end;
+    SortVisibleByNewest;
+    FileList.Items.Count := FVisibleItems.Count;
+    if FThumbnailQueuePosition < FThumbnailQueue.Count then
+      ThumbnailTimer.Enabled := True;
+    StatusLabel.Caption := Format('%d yeni dosya algilandi.',
+      [FFiles.Count - OldCount]);
   finally
     Changes.Free;
   end;
