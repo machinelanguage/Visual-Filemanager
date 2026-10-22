@@ -52,15 +52,12 @@ type
     FOutputFile: string;
     FSuccess: Boolean;
     FErrorText: string;
-    FLock: TCriticalSection;
-    FCompleted: Boolean;
   protected
     procedure Execute; override;
   public
     constructor Create(const AIndex: Integer; const AFileName,
       AOutputFile: string);
-    destructor Destroy; override;
-    function IsCompleted: Boolean;
+    function IsFinished: Boolean;
     property Index: Integer read FIndex;
     property FileName: string read FFileName;
     property Success: Boolean read FSuccess;
@@ -136,6 +133,7 @@ type
     procedure OpenSelectedFile;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
+    procedure SortVisibleByNewest;
     procedure QueueThumbnail(const AIndex: Integer);
     procedure QueueThumbnailPage(const AVisibleIndex: Integer);
     procedure StartVideoThumbnail(const AIndex: Integer);
@@ -255,38 +253,19 @@ begin
   FIndex := AIndex;
   FFileName := AFileName;
   FOutputFile := AOutputFile;
-  FLock := TCriticalSection.Create;
 end;
 
-destructor TVideoThumbnailWorker.Destroy;
+function TVideoThumbnailWorker.IsFinished: Boolean;
 begin
-  FLock.Free;
-  inherited;
-end;
-
-function TVideoThumbnailWorker.IsCompleted: Boolean;
-begin
-  FLock.Acquire;
-  try
-    Result := FCompleted;
-  finally
-    FLock.Release;
-  end;
+  { The thread handle is signalled only after Execute has completely returned.
+    No shared completion flag or critical section is necessary. }
+  Result := WaitForSingleObject(Handle, 0) = WAIT_OBJECT_0;
 end;
 
 procedure TVideoThumbnailWorker.Execute;
 begin
-  try
-    if not Terminated then
-      FSuccess := ExtractVideoFrame(FFileName, FOutputFile, FErrorText);
-  finally
-    FLock.Acquire;
-    try
-      FCompleted := True;
-    finally
-      FLock.Release;
-    end;
-  end;
+  if not Terminated then
+    FSuccess := ExtractVideoFrame(FFileName, FOutputFile, FErrorText);
 end;
 
 constructor TFileScanWorker.Create(const ARootFolder, AThumbnailFolder: string;
@@ -499,7 +478,7 @@ procedure TFrmVisualFileManager.LoadSettings;
 var
   Ini: TIniFile;
   SavedFolder: string;
-  SavedView, SavedClickMode, SavedSort, SavedFilter, SavedGroup: Integer;
+  SavedView, SavedClickMode, SavedFilter, SavedGroup: Integer;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -517,11 +496,8 @@ begin
       ClickModeBox.ItemIndex := SavedClickMode
     else
       ClickModeBox.ItemIndex := 0;
-    SavedSort := Ini.ReadInteger('General', 'SortMode', 0);
-    if (SavedSort >= 0) and (SavedSort < SortBox.Items.Count) then
-      SortBox.ItemIndex := SavedSort
-    else
-      SortBox.ItemIndex := 0;
+    { Startup always begins with newest files first. }
+    SortBox.ItemIndex := 0;
     SavedFilter := Ini.ReadInteger('General', 'FileFilter', 0);
     if (SavedFilter >= 0) and (SavedFilter < FilterBox.Items.Count) then
       FilterBox.ItemIndex := SavedFilter
@@ -754,14 +730,14 @@ begin
   { Keep this UI-side batch intentionally small. File discovery remains in
     TFileScanWorker; this timer only merges already-discovered entries. }
   Added := FScanWorker.TakeBatch(FFiles, 25);
-  if (Added > 0) and (Trim(SearchEdit.Text) = '') and
-    (SortBox.ItemIndex = 0) then
+  if (Added > 0) and (Trim(SearchEdit.Text) = '') then
   begin
     while PreviousCount < FFiles.Count do
     begin
       AddVisibleFile(PreviousCount);
       Inc(PreviousCount);
     end;
+    SortVisibleByNewest;
     if (FLastScanUiTick = 0) or
       (Cardinal(GetTickCount - FLastScanUiTick) >= 200) then
     begin
@@ -848,6 +824,19 @@ begin
   FVisibleItems.Add(AIndex);
 end;
 
+procedure TFrmVisualFileManager.SortVisibleByNewest;
+begin
+  if (SortBox.ItemIndex <> 0) or CurrentGroupByFolder then
+    Exit;
+  FVisibleItems.Sort(TComparer<Integer>.Construct(
+    function(const Left, Right: Integer): Integer
+    begin
+      Result := CompareValue(FFiles[Right].ModifiedAt, FFiles[Left].ModifiedAt);
+      if Result = 0 then
+        Result := CompareText(FFiles[Left].DisplayName, FFiles[Right].DisplayName);
+    end));
+end;
+
 procedure TFrmVisualFileManager.QueueThumbnail(const AIndex: Integer);
 var
   FileName: string;
@@ -898,7 +887,7 @@ var
   FileIndex: Integer;
 begin
   Worker := FVideoWorker;
-  if not Assigned(Worker) or not Worker.IsCompleted then
+  if not Assigned(Worker) or not Worker.IsFinished then
     Exit;
 
   FVideoWorker := nil;
@@ -1116,7 +1105,7 @@ begin
 
   if Assigned(FVideoWorker) then
   begin
-    if not FVideoWorker.IsCompleted then
+    if not FVideoWorker.IsFinished then
     begin
       ThumbnailTimer.Enabled := True;
       Exit;
