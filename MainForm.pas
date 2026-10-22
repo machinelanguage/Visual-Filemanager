@@ -10,10 +10,14 @@ uses
   Vcl.Dialogs, Vcl.ImgList, System.IniFiles;
 
 type
+  TFileTypeFilter = (ftMediaPdf, ftAllFiles, ftImages, ftVideos, ftPdf,
+    ftAudio);
+
   TFileEntry = record
     FullName: string;
     DisplayName: string;
     Extension: string;
+    FolderName: string;
     Size: Int64;
     ModifiedAt: TDateTime;
   end;
@@ -22,7 +26,7 @@ type
   private
     FRootFolder: string;
     FThumbnailFolder: string;
-    FMediaOnly: Boolean;
+    FFileFilter: TFileTypeFilter;
     FItems: TList<TFileEntry>;
     FLock: TCriticalSection;
     FReadPosition: Integer;
@@ -34,7 +38,7 @@ type
     procedure Execute; override;
   public
     constructor Create(const ARootFolder, AThumbnailFolder: string;
-      const AMediaOnly: Boolean);
+      const AFileFilter: TFileTypeFilter);
     destructor Destroy; override;
     function TakeBatch(const ADestination: TList<TFileEntry>;
       const AMaximum: Integer): Integer;
@@ -70,6 +74,7 @@ type
     ScanButton: TButton;
     StopButton: TButton;
     ClickModeBox: TComboBox;
+    FolderGroupBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -86,6 +91,7 @@ type
     procedure ScanClick(Sender: TObject);
     procedure StopClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
+    procedure FolderGroupChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -113,7 +119,7 @@ type
     FLastThumbnailRefreshTick: Cardinal;
     FThumbnailImagesDirty: Boolean;
     FPendingScanFolder: string;
-    FPendingMediaOnly: Boolean;
+    FPendingFileFilter: TFileTypeFilter;
     FStartupScanDone: Boolean;
     FLastScanUiTick: Cardinal;
     procedure LoadSettings;
@@ -124,7 +130,9 @@ type
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
-    procedure StartScan(const AFolder: string; const AMediaOnly: Boolean);
+    function SelectedFileFilter: TFileTypeFilter;
+    procedure StartScan(const AFolder: string;
+      const AFileFilter: TFileTypeFilter);
     procedure OpenSelectedFile;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
@@ -161,6 +169,7 @@ uses
 
 var
   CurrentSort: Integer;
+  CurrentGroupByFolder: Boolean;
 
 function FfmpegExecutable: string;
 var
@@ -281,13 +290,13 @@ begin
 end;
 
 constructor TFileScanWorker.Create(const ARootFolder, AThumbnailFolder: string;
-  const AMediaOnly: Boolean);
+  const AFileFilter: TFileTypeFilter);
 begin
   inherited Create(True);
   FreeOnTerminate := False;
   FRootFolder := ARootFolder;
   FThumbnailFolder := AThumbnailFolder;
-  FMediaOnly := AMediaOnly;
+  FFileFilter := AFileFilter;
   FItems := TList<TFileEntry>.Create;
   FLock := TCriticalSection.Create;
 end;
@@ -303,11 +312,22 @@ function TFileScanWorker.IsIncludedFile(const AFileName: string): Boolean;
 var
   Extension: string;
 begin
-  if not FMediaOnly then
-    Exit(True);
   Extension := LowerCase(ExtractFileExt(AFileName));
-  Result := MatchText(Extension, ['.pdf', '.jpg', '.jpeg', '.png', '.bmp',
-    '.gif', '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.mp3', '.wav', '.flac']);
+  case FFileFilter of
+    ftAllFiles:
+      Result := True;
+    ftImages:
+      Result := MatchText(Extension, ['.jpg', '.jpeg', '.png', '.bmp', '.gif']);
+    ftVideos:
+      Result := MatchText(Extension, ['.mp4', '.avi', '.mkv', '.mov', '.wmv']);
+    ftPdf:
+      Result := SameText(Extension, '.pdf');
+    ftAudio:
+      Result := MatchText(Extension, ['.mp3', '.wav', '.flac']);
+  else
+    Result := MatchText(Extension, ['.pdf', '.jpg', '.jpeg', '.png', '.bmp',
+      '.gif', '.mp4', '.avi', '.mkv', '.mov', '.wmv', '.mp3', '.wav', '.flac']);
+  end;
 end;
 
 procedure TFileScanWorker.AddFile(const AFileName: string;
@@ -320,6 +340,7 @@ begin
   Item.FullName := AFileName;
   Item.DisplayName := ExtractFileName(AFileName);
   Item.Extension := LowerCase(ExtractFileExt(AFileName));
+  Item.FolderName := ExtractFileDir(AFileName);
   Item.Size := Int64(ASearch.Size);
   Item.ModifiedAt := FileDateToDateTime(ASearch.Time);
   FLock.Acquire;
@@ -407,8 +428,14 @@ end;
 
 function CompareEntries(const Left, Right: TFileEntry): Integer;
 begin
+  if CurrentGroupByFolder then
+  begin
+    Result := CompareText(Left.FolderName, Right.FolderName);
+    if Result <> 0 then
+      Exit;
+  end;
   case CurrentSort of
-    1: Result := CompareValue(Right.ModifiedAt, Left.ModifiedAt);
+    0: Result := CompareValue(Right.ModifiedAt, Left.ModifiedAt);
     2: Result := CompareValue(Right.Size, Left.Size);
     3: Result := CompareText(Left.Extension, Right.Extension);
   else
@@ -472,7 +499,7 @@ procedure TFrmVisualFileManager.LoadSettings;
 var
   Ini: TIniFile;
   SavedFolder: string;
-  SavedView, SavedClickMode: Integer;
+  SavedView, SavedClickMode, SavedSort, SavedFilter, SavedGroup: Integer;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -490,9 +517,25 @@ begin
       ClickModeBox.ItemIndex := SavedClickMode
     else
       ClickModeBox.ItemIndex := 0;
+    SavedSort := Ini.ReadInteger('General', 'SortMode', 0);
+    if (SavedSort >= 0) and (SavedSort < SortBox.Items.Count) then
+      SortBox.ItemIndex := SavedSort
+    else
+      SortBox.ItemIndex := 0;
+    SavedFilter := Ini.ReadInteger('General', 'FileFilter', 0);
+    if (SavedFilter >= 0) and (SavedFilter < FilterBox.Items.Count) then
+      FilterBox.ItemIndex := SavedFilter
+    else
+      FilterBox.ItemIndex := 0;
+    SavedGroup := Ini.ReadInteger('General', 'FolderGrouping', 0);
+    if (SavedGroup >= 0) and (SavedGroup < FolderGroupBox.Items.Count) then
+      FolderGroupBox.ItemIndex := SavedGroup
+    else
+      FolderGroupBox.ItemIndex := 0;
   finally
     Ini.Free;
   end;
+  CurrentGroupByFolder := FolderGroupBox.ItemIndex = 1;
   ViewChange(nil);
 end;
 
@@ -505,6 +548,9 @@ begin
     Ini.WriteString('General', 'LastFolder', FolderEdit.Text);
     Ini.WriteInteger('General', 'ViewMode', ViewBox.ItemIndex);
     Ini.WriteInteger('General', 'ClickMode', ClickModeBox.ItemIndex);
+    Ini.WriteInteger('General', 'SortMode', SortBox.ItemIndex);
+    Ini.WriteInteger('General', 'FileFilter', FilterBox.ItemIndex);
+    Ini.WriteInteger('General', 'FolderGrouping', FolderGroupBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -607,8 +653,13 @@ begin
   AddPlaceholder('file', 'DOSYA', $00606060);
 end;
 
+function TFrmVisualFileManager.SelectedFileFilter: TFileTypeFilter;
+begin
+  Result := TFileTypeFilter(FilterBox.ItemIndex);
+end;
+
 procedure TFrmVisualFileManager.StartScan(const AFolder: string;
-  const AMediaOnly: Boolean);
+  const AFileFilter: TFileTypeFilter);
 begin
   FRootFolder := ExcludeTrailingPathDelimiter(AFolder);
   FThumbnailFolder := TPath.Combine(FRootFolder, 'thumbnail');
@@ -630,7 +681,7 @@ begin
   FThumbnailImagesDirty := False;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
-    AMediaOnly);
+    AFileFilter);
   FScanWorker.Priority := tpLower;
   FLastScanUiTick := 0;
   FScanWorker.Start;
@@ -664,13 +715,13 @@ begin
   if Assigned(FScanWorker) then
   begin
     FPendingScanFolder := RequestedFolder;
-    FPendingMediaOnly := FilterBox.ItemIndex = 0;
+    FPendingFileFilter := SelectedFileFilter;
     FScanWorker.Terminate;
     StatusLabel.Caption := 'Onceki tarama durduruluyor, yeni tarama bekliyor...';
     Exit;
   end;
 
-  StartScan(RequestedFolder, FilterBox.ItemIndex = 0);
+  StartScan(RequestedFolder, SelectedFileFilter);
 end;
 
 procedure TFrmVisualFileManager.StopClick(Sender: TObject);
@@ -692,7 +743,7 @@ procedure TFrmVisualFileManager.ScanTimerTick(Sender: TObject);
 var
   PreviousCount, Added: Integer;
   NextFolder: string;
-  NextMediaOnly: Boolean;
+  NextFileFilter: TFileTypeFilter;
 begin
   if not Assigned(FScanWorker) then
   begin
@@ -731,10 +782,10 @@ begin
     StopButton.Enabled := False;
 
     NextFolder := FPendingScanFolder;
-    NextMediaOnly := FPendingMediaOnly;
+    NextFileFilter := FPendingFileFilter;
     FPendingScanFolder := '';
     if NextFolder <> '' then
-      StartScan(NextFolder, NextMediaOnly)
+      StartScan(NextFolder, NextFileFilter)
     else
       Render;
   end;
@@ -757,6 +808,7 @@ end;
 
 procedure TFrmVisualFileManager.SortChange(Sender: TObject);
 begin
+  SaveSettings;
   if Assigned(FScanWorker) then
     StatusLabel.Caption := 'Siralama tarama tamamlandiginda uygulanacak.'
   else
@@ -765,6 +817,7 @@ end;
 
 procedure TFrmVisualFileManager.ViewChange(Sender: TObject);
 begin
+  SaveSettings;
   if ViewBox.ItemIndex = 1 then
   begin
     FileList.ViewStyle := vsIcon;
@@ -776,7 +829,18 @@ end;
 
 procedure TFrmVisualFileManager.FilterChange(Sender: TObject);
 begin
-  StatusLabel.Caption := 'Filtre degisti. Dosyalari Tara ile yenileyin.';
+  SaveSettings;
+  StatusLabel.Caption := 'Dosya tipi filtresi degisti. Dosyalari Tara ile yenileyin.';
+end;
+
+procedure TFrmVisualFileManager.FolderGroupChange(Sender: TObject);
+begin
+  CurrentGroupByFolder := FolderGroupBox.ItemIndex = 1;
+  SaveSettings;
+  if Assigned(FScanWorker) then
+    StatusLabel.Caption := 'Klasor gruplamasi tarama tamamlaninca uygulanacak.'
+  else
+    Render;
 end;
 
 procedure TFrmVisualFileManager.AddVisibleFile(const AIndex: Integer);
@@ -1106,6 +1170,7 @@ begin
   Item.SubItems.Add(FileEntry.Extension);
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
   Item.SubItems.Add(DateTimeToStr(FileEntry.ModifiedAt));
+  Item.SubItems.Add(FileEntry.FolderName);
   Item.SubItems.Add(FileEntry.FullName);
   if FThumbnailIndexes.TryGetValue(FileEntry.FullName, ImageIndex) and
     (ImageIndex < ThumbnailImages.Count) then
