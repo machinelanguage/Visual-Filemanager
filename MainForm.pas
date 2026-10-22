@@ -369,7 +369,12 @@ begin
       BytesReturned := 0;
       if not ReadDirectoryChangesW(DirectoryHandle, @Buffer[0], SizeOf(Buffer),
         True, FILE_NOTIFY_CHANGE_FILE_NAME, @BytesReturned, @Overlapped, nil) then
-        Exit;
+      begin
+        { With FILE_FLAG_OVERLAPPED Windows normally returns ERROR_IO_PENDING.
+          It means the background notification is now waiting, not an error. }
+        if GetLastError <> ERROR_IO_PENDING then
+          Exit;
+      end;
       WaitForSingleObject(EventHandle, INFINITE);
       if Terminated then
         Exit;
