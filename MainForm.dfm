@@ -214,6 +214,13 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Left = 1120
     Top = 16
   end
+  object MonitorTimer: TTimer
+    Enabled = False
+    Interval = 500
+    OnTimer = MonitorTimerTick
+    Left = 1000
+    Top = 48
+  end
   object ThumbnailImages: TImageList
     ColorDepth = cd32Bit
     Height = 120
