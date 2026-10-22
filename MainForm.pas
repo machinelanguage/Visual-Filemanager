@@ -1434,6 +1434,9 @@ begin
     RemoveDuplicateFiles;
     if FFiles.Count > OldCount then
     begin
+      { Clear the virtual list cache first. Without this OwnerData ListView can
+        retain old display records during a monitor-driven refresh. }
+      FileList.Items.Count := 0;
       Render;
       StatusLabel.Caption := Format('%d yeni dosya algilandi.', [FFiles.Count - OldCount]);
     end;
