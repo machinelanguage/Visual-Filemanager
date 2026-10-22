@@ -19,7 +19,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Left = 0
     Top = 0
     Width = 1180
-    Height = 76
+    Height = 104
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
@@ -75,11 +75,11 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Style = csDropDownList
       ItemIndex = 0
       TabOrder = 5
-      Text = 'Dosya adi'
+      Text = 'En yeni'
       OnChange = SortChange
       Items.Strings = (
-        'Dosya adi'
         'En yeni'
+        'Dosya adi'
         'Boyut'
         'Uzanti')
     end
@@ -109,7 +109,11 @@ object FrmVisualFileManager: TFrmVisualFileManager
       OnChange = FilterChange
       Items.Strings = (
         'Medya ve PDF'
-        'Tum dosyalar')
+        'Tum dosyalar'
+        'Resimler'
+        'Videolar'
+        'PDF'
+        'Ses dosyalari')
     end
     object ClickModeBox: TComboBox
       Left = 840
@@ -125,9 +129,23 @@ object FrmVisualFileManager: TFrmVisualFileManager
         'Cift tikla ac'
         'Tek tikla ac')
     end
-    object StatusLabel: TLabel
+    object FolderGroupBox: TComboBox
       Left = 980
-      Top = 49
+      Top = 46
+      Width = 180
+      Height = 23
+      Style = csDropDownList
+      ItemIndex = 0
+      TabOrder = 9
+      Text = 'Duz liste'
+      OnChange = FolderGroupChange
+      Items.Strings = (
+        'Duz liste'
+        'Alt klasore gore grupla')
+    end
+    object StatusLabel: TLabel
+      Left = 840
+      Top = 18
       Width = 234
       Height = 13
       Caption = 'Medya veya PDF klasoru secin.'
@@ -135,9 +153,9 @@ object FrmVisualFileManager: TFrmVisualFileManager
   end
   object FileList: TListView
     Left = 0
-    Top = 76
+    Top = 104
     Width = 1180
-    Height = 684
+    Height = 656
     Align = alClient
     Columns = <
       item
@@ -157,8 +175,12 @@ object FrmVisualFileManager: TFrmVisualFileManager
         Width = 150
       end
       item
+        Caption = 'Klasor'
+        Width = 220
+      end
+      item
         Caption = 'Tam yol'
-        Width = 480
+        Width = 360
       end>
     LargeImages = ThumbnailImages
     OwnerData = True
