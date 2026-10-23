@@ -12,9 +12,9 @@ object FrmVisualFileManager: TFrmVisualFileManager
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
-  OnShow = FormShow
   object ToolPanel: TPanel
     Left = 0
     Top = 0
@@ -23,11 +23,18 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Align = alTop
     BevelOuter = bvNone
     TabOrder = 0
+    object StatusLabel: TLabel
+      Left = 840
+      Top = 18
+      Width = 149
+      Height = 13
+      Caption = 'Medya veya PDF klasoru secin.'
+    end
     object FolderEdit: TEdit
       Left = 16
       Top = 14
       Width = 490
-      Height = 25
+      Height = 21
       TabOrder = 0
     end
     object BrowseButton: TButton
@@ -62,7 +69,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Left = 16
       Top = 46
       Width = 350
-      Height = 23
+      Height = 21
       TabOrder = 4
       TextHint = 'Dosya adinda ara...'
       OnChange = SearchChange
@@ -71,7 +78,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Left = 376
       Top = 46
       Width = 154
-      Height = 23
+      Height = 21
       Style = csDropDownList
       ItemIndex = 0
       TabOrder = 5
@@ -87,7 +94,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Left = 540
       Top = 46
       Width = 130
-      Height = 23
+      Height = 21
       Style = csDropDownList
       ItemIndex = 0
       TabOrder = 6
@@ -101,7 +108,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Left = 680
       Top = 46
       Width = 150
-      Height = 23
+      Height = 21
       Style = csDropDownList
       ItemIndex = 0
       TabOrder = 7
@@ -119,7 +126,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Left = 840
       Top = 46
       Width = 130
-      Height = 23
+      Height = 21
       Style = csDropDownList
       ItemIndex = 0
       TabOrder = 8
@@ -133,7 +140,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Left = 980
       Top = 46
       Width = 180
-      Height = 23
+      Height = 21
       Style = csDropDownList
       ItemIndex = 0
       TabOrder = 9
@@ -142,13 +149,6 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Items.Strings = (
         'Duz liste'
         'Alt klasore gore grupla')
-    end
-    object StatusLabel: TLabel
-      Left = 840
-      Top = 18
-      Width = 234
-      Height = 13
-      Caption = 'Medya veya PDF klasoru secin.'
     end
   end
   object FileList: TListView
@@ -197,42 +197,42 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Enabled = False
     Interval = 250
     OnTimer = SearchTimerTick
-    Left = 1040
-    Top = 16
+    Left = 1104
+    Top = 272
   end
   object ScanTimer: TTimer
     Enabled = False
     Interval = 60
     OnTimer = ScanTimerTick
-    Left = 1080
-    Top = 16
+    Left = 1016
+    Top = 280
   end
   object ThumbnailTimer: TTimer
     Enabled = False
     Interval = 30
     OnTimer = ThumbnailTimerTick
-    Left = 1120
-    Top = 16
+    Left = 904
+    Top = 280
   end
   object MonitorTimer: TTimer
     Enabled = False
-    Interval = 500
+    Interval = 30000
     OnTimer = MonitorTimerTick
-    Left = 1000
-    Top = 48
+    Left = 896
+    Top = 200
   end
   object ThumbnailImages: TImageList
     ColorDepth = cd32Bit
     Height = 120
     Width = 160
-    Left = 1040
-    Top = 48
+    Left = 1016
+    Top = 208
   end
   object ThumbnailStagingImages: TImageList
     ColorDepth = cd32Bit
     Height = 120
     Width = 160
-    Left = 1080
-    Top = 48
+    Left = 1112
+    Top = 200
   end
 end

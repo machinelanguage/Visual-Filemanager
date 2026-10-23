@@ -7,7 +7,7 @@ uses
   System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
-  Vcl.Dialogs, Vcl.ImgList, System.IniFiles;
+  Vcl.Dialogs, Vcl.ImgList, System.IniFiles, System.ImageList;
 
 type
   TFileTypeFilter = (ftMediaPdf, ftAllFiles, ftImages, ftVideos, ftPdf,
@@ -1455,8 +1455,11 @@ begin
             AlreadyVisible := True;
             Break;
           end;
-        if not AlreadyVisible then
+        if not AlreadyVisible then begin
           AddVisibleFile(I);
+          beep;
+        end;
+
       end;
       QueueThumbnail(I);
     end;
