@@ -95,6 +95,7 @@ type
     BrowseButton: TButton;
     ScanButton: TButton;
     StopButton: TButton;
+    DeleteButton: TButton;
     ClickModeBox: TComboBox;
     FolderGroupBox: TComboBox;
     SearchEdit: TEdit;
@@ -113,6 +114,7 @@ type
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure StopClick(Sender: TObject);
+    procedure DeleteClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
@@ -197,7 +199,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.4';
+  APPLICATION_VERSION = '1.2.5';
 
 {$R *.dfm}
 
@@ -1512,6 +1514,58 @@ begin
     Item.ImageIndex := PlaceholderImageIndex(FileEntry);
   if ViewBox.ItemIndex = 1 then
     QueueThumbnailPage(Item.Index);
+end;
+
+procedure TFrmVisualFileManager.DeleteClick(Sender: TObject);
+var
+  Position, Index: Integer;
+  FileName, DeleteSource: string;
+  Operation: TSHFileOpStruct;
+begin
+  if not Assigned(FileList.Selected) then
+  begin
+    MessageDlg('Silmek icin bir dosya secin.', mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  if Assigned(FScanWorker) or Assigned(FVideoWorker) then
+  begin
+    MessageDlg('Tarama veya kucuk resim islemi tamamlanana kadar silme yapilamaz.',
+      mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  Position := FileList.Selected.Index;
+  if (Position < 0) or (Position >= FVisibleItems.Count) then
+    Exit;
+  Index := FVisibleItems[Position];
+  FileName := FFiles[Index].FullName;
+
+  if MessageDlg('Secili dosya Geri Donusum Kutusu''na tasinacak. Devam edilsin mi?',
+    mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  if MessageDlg(Format('Son onay: "%s" dosyasi silinecek. Onayliyor musunuz?',
+    [ExtractFileName(FileName)]), mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    Exit;
+
+  DeleteSource := FileName + #0#0;
+  ZeroMemory(@Operation, SizeOf(Operation));
+  Operation.Wnd := Handle;
+  Operation.wFunc := FO_DELETE;
+  Operation.pFrom := PChar(DeleteSource);
+  Operation.fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_SILENT;
+
+  if (SHFileOperation(Operation) <> 0) or Operation.fAnyOperationsAborted then
+  begin
+    MessageDlg('Dosya silinemedi.', mtError, [mbOK], 0);
+    Exit;
+  end;
+
+  FKnownFiles.Remove(CanonicalFileName(FileName));
+  FFiles.Delete(Index);
+  Render;
+  StatusLabel.Caption := 'Dosya Geri Donusum Kutusu''na tasindi.';
 end;
 
 procedure TFrmVisualFileManager.OpenSelectedFile;
