@@ -15,8 +15,10 @@
     <Base>true</Base>
     <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     <VerInfo_Locale>1055</VerInfo_Locale>
-    <VerInfo_Keys>CompanyName=;FileDescription=Dosya Yoneticisi;FileVersion=1.2.1.0;InternalName=VisualFileManager;LegalCopyright=;OriginalFilename=VisualFileManager.exe;ProductName=Dosya Yoneticisi;ProductVersion=1.2.1.0;Comments=</VerInfo_Keys>
+    <VerInfo_Keys>CompanyName=;FileDescription=Dosya Yoneticisi;FileVersion=1.2.2.0;InternalName=VisualFileManager;LegalCopyright=;OriginalFilename=VisualFileManager.exe;ProductName=Dosya Yoneticisi;ProductVersion=1.2.2.0;Comments=</VerInfo_Keys>
     <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Winapi;Vcl;Vcl.Imaging;Vcl.Samples;Vcl.Touch;System.Win;System.JSON;System.Net;System.ZLib</DCC_Namespace>
+    <DCC_ExeOutput>.\Win32\$(Config)</DCC_ExeOutput>
+    <DCC_UnitOutput>.\Win32\$(Config)</DCC_UnitOutput>
     <DCC_UnitSearchPath>$(BDS)\lib\win32\release;$(BDS)\Imports;$(BDS)\Imports\Win32;$(BDSCommonDir)\Dcp;$(BDS)\include</DCC_UnitSearchPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
@@ -31,5 +33,4 @@
     <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
   </PropertyGroup>
   <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')"/>
 </Project>
