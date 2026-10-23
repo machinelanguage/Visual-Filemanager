@@ -1,0 +1,4 @@
+# Dosya Yoneticisi
+
+Evet, bu bulgu kök nedeni güçlendiriyor: kýsa MonitorTimerTick aralýðýnda ayný Windows dosya olayý farklý bildirimler halinde ardýþýk turlara bölünüyor; arayüz ilk bildirimi iþlerken devam eden bildirimler yeni ekleme gibi tekrar deðerlendirilebiliyordu.
+30 saniye, bildirimleri doðal olarak tek batch’te topladýðý için sorunu görünmez hale getirmiþ. Kalýcý çözüm için ideal yaklaþým kýsa timer yerine “dosya olayý geldikten sonra 1–2 saniye sessizlik bekle, sonra tek batch iþle” biçiminde debounce uygulamaktýr. Böylece yeni dosya hemen görünür, 30 saniye gecikme olmaz ve tekrarlar engellenir.
