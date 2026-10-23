@@ -192,12 +192,12 @@ var
 
 implementation
 
-
-const
-  APPLICATION_VERSION = '1.2.2';
 uses
   System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl, Vcl.Graphics,
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
+
+const
+  APPLICATION_VERSION = '1.2.3';
 
 {$R *.dfm}
 
