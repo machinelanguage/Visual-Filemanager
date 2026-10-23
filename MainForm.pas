@@ -197,7 +197,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.3';
+  APPLICATION_VERSION = '1.2.4';
 
 {$R *.dfm}
 
