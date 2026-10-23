@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{F0A05F71-62CE-4E2E-9E1B-7D6C8D9B41A2}</ProjectGuid>
+    <ProjectVersion>18.0</ProjectVersion>
+    <FrameworkType>VCL</FrameworkType>
+    <MainSource>VisualFileManager.dpr</MainSource>
+    <Base>True</Base>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <TargetedPlatforms>3</TargetedPlatforms>
+    <AppType>Application</AppType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
+    <Base>true</Base>
+    <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+    <VerInfo_Locale>1055</VerInfo_Locale>
+    <VerInfo_Keys>CompanyName=;FileDescription=Dosya Yoneticisi;FileVersion=1.2.1.0;InternalName=VisualFileManager;LegalCopyright=;OriginalFilename=VisualFileManager.exe;ProductName=Dosya Yoneticisi;ProductVersion=1.2.1.0;Comments=</VerInfo_Keys>
+    <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Winapi;Vcl;Vcl.Imaging;Vcl.Samples;Vcl.Touch;System.Win;System.JSON;System.Net;System.ZLib</DCC_Namespace>
+    <DCC_UnitSearchPath>$(BDS)\lib\win32\release;$(BDS)\Imports;$(BDS)\Imports\Win32;$(BDSCommonDir)\Dcp;$(BDS)\include</DCC_UnitSearchPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
+    <Cfg_1>true</Cfg_1>
+    <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+    <DCC_DebugInformation>true</DCC_DebugInformation>
+    <DCC_SymbolReferenceInfo>1</DCC_SymbolReferenceInfo>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_2)'!=''">
+    <Cfg_2>true</Cfg_2>
+    <DCC_DebugInformation>false</DCC_DebugInformation>
+    <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
+  </PropertyGroup>
+  <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" Condition="Exists('$(MSBuildToolsPath)\Microsoft.CSharp.targets')"/>
+</Project>
