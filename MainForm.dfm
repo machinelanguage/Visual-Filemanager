@@ -24,9 +24,9 @@ object FrmVisualFileManager: TFrmVisualFileManager
     BevelOuter = bvNone
     TabOrder = 0
     object StatusLabel: TLabel
-      Left = 840
+      Left = 950
       Top = 18
-      Width = 149
+      Width = 210
       Height = 13
       Caption = 'Medya veya PDF klasoru secin.'
     end
@@ -64,6 +64,15 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Enabled = False
       TabOrder = 3
       OnClick = StopClick
+    end
+    object DeleteButton: TButton
+      Left = 840
+      Top = 13
+      Width = 100
+      Height = 27
+      Caption = 'Dosyayi Sil'
+      TabOrder = 4
+      OnClick = DeleteClick
     end
     object SearchEdit: TEdit
       Left = 16
