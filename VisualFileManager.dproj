@@ -8,30 +8,109 @@
     <Base>True</Base>
     <Config Condition="'$(Config)'==''">Debug</Config>
     <Platform Condition="'$(Platform)'==''">Win32</Platform>
-    <TargetedPlatforms>3</TargetedPlatforms>
+    <TargetedPlatforms>1</TargetedPlatforms>
     <AppType>Application</AppType>
+    <DCC_DCCCompiler>DCC32</DCC_DCCCompiler>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
     <Base>true</Base>
+  </PropertyGroup>
+  <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
+    <Base_Win32>true</Base_Win32>
+    <CfgParent>Base</CfgParent>
+    <Base>true</Base>
+    <Icon_MainIcon>VisualFileManager.ico</Icon_MainIcon>
     <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     <VerInfo_Locale>1055</VerInfo_Locale>
-    <VerInfo_Keys>CompanyName=;FileDescription=Dosya Yoneticisi;FileVersion=1.2.6.0;InternalName=VisualFileManager;LegalCopyright=;OriginalFilename=VisualFileManager.exe;ProductName=Dosya Yoneticisi;ProductVersion=1.2.6.0;Comments=</VerInfo_Keys>
-    <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Winapi;Vcl;Vcl.Imaging;Vcl.Samples;Vcl.Touch;System.Win;System.JSON;System.Net;System.ZLib</DCC_Namespace>
+    <VerInfo_Keys>CompanyName=;FileDescription=Dosya Yoneticisi;FileVersion=1.2.7.0;InternalName=VisualFileManager;LegalCopyright=;LegalTrademarks=;OriginalFilename=VisualFileManager.exe;ProductName=Dosya Yoneticisi;ProductVersion=1.2.7.0;Comments=</VerInfo_Keys>
     <DCC_ExeOutput>.</DCC_ExeOutput>
-    <Icon_MainIcon>VisualFileManager.ico</Icon_MainIcon>
     <DCC_UnitOutput>.\Win32\$(Config)</DCC_UnitOutput>
-    <DCC_UnitSearchPath>$(BDS)\lib\win32\release;$(BDS)\Imports;$(BDS)\Imports\Win32;$(BDSCommonDir)\Dcp;$(BDS)\include</DCC_UnitSearchPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
     <Cfg_1>true</Cfg_1>
+    <CfgParent>Base</CfgParent>
+    <Base>true</Base>
+  </PropertyGroup>
+  <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_1)'=='true') or '$(Cfg_1_Win32)'!=''">
+    <Cfg_1_Win32>true</Cfg_1_Win32>
+    <CfgParent>Cfg_1</CfgParent>
     <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
     <DCC_DebugInformation>true</DCC_DebugInformation>
     <DCC_SymbolReferenceInfo>1</DCC_SymbolReferenceInfo>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_2)'!=''">
     <Cfg_2>true</Cfg_2>
+    <CfgParent>Base</CfgParent>
+  </PropertyGroup>
+  <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Cfg_2)'=='true') or '$(Cfg_2_Win32)'!=''">
+    <Cfg_2_Win32>true</Cfg_2_Win32>
+    <CfgParent>Cfg_2</CfgParent>
+    <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
     <DCC_DebugInformation>false</DCC_DebugInformation>
     <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
   </PropertyGroup>
+  <ItemGroup>
+    <DelphiCompile Include="$(MainSource)">
+      <MainSource>MainSource</MainSource>
+    </DelphiCompile>
+    <DCCReference Include="MainForm.pas">
+      <Form>FrmVisualFileManager</Form>
+    </DCCReference>
+    <BuildConfiguration Include="Base">
+      <Key>Base</Key>
+    </BuildConfiguration>
+    <BuildConfiguration Include="Debug">
+      <Key>Cfg_1</Key>
+      <CfgParent>Base</CfgParent>
+    </BuildConfiguration>
+    <BuildConfiguration Include="Release">
+      <Key>Cfg_2</Key>
+      <CfgParent>Base</CfgParent>
+    </BuildConfiguration>
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Delphi.Personality.12</Borland.Personality>
+    <Borland.ProjectType>Application</Borland.ProjectType>
+    <BorlandProject>
+      <Delphi.Personality>
+        <VersionInfo>
+          <VersionInfo Name="IncludeVerInfo">True</VersionInfo>
+          <VersionInfo Name="AutoIncBuild">False</VersionInfo>
+          <VersionInfo Name="MajorVer">1</VersionInfo>
+          <VersionInfo Name="MinorVer">2</VersionInfo>
+          <VersionInfo Name="Release">7</VersionInfo>
+          <VersionInfo Name="Build">0</VersionInfo>
+          <VersionInfo Name="Debug">False</VersionInfo>
+          <VersionInfo Name="PreRelease">False</VersionInfo>
+          <VersionInfo Name="Special">False</VersionInfo>
+          <VersionInfo Name="Private">False</VersionInfo>
+          <VersionInfo Name="DLL">False</VersionInfo>
+          <VersionInfo Name="Locale">1055</VersionInfo>
+          <VersionInfo Name="CodePage">1254</VersionInfo>
+        </VersionInfo>
+        <VersionInfoKeys>
+          <VersionInfoKeys Name="CompanyName"/>
+          <VersionInfoKeys Name="FileDescription">Dosya Yoneticisi</VersionInfoKeys>
+          <VersionInfoKeys Name="FileVersion">1.2.7.0</VersionInfoKeys>
+          <VersionInfoKeys Name="InternalName">VisualFileManager</VersionInfoKeys>
+          <VersionInfoKeys Name="LegalCopyright"/>
+          <VersionInfoKeys Name="LegalTrademarks"/>
+          <VersionInfoKeys Name="OriginalFilename">VisualFileManager.exe</VersionInfoKeys>
+          <VersionInfoKeys Name="ProductName">Dosya Yoneticisi</VersionInfoKeys>
+          <VersionInfoKeys Name="ProductVersion">1.2.7.0</VersionInfoKeys>
+          <VersionInfoKeys Name="Comments"/>
+        </VersionInfoKeys>
+        <Source>
+          <Source Name="MainSource">VisualFileManager.dpr</Source>
+        </Source>
+      </Delphi.Personality>
+      <Platforms>
+        <Platform value="Win32">True</Platform>
+        <Platform value="Win64">False</Platform>
+      </Platforms>
+    </BorlandProject>
+    <ProjectFileVersion>12</ProjectFileVersion>
+  </ProjectExtensions>
   <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
+  <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
 </Project>
