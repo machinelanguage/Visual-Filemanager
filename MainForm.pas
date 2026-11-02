@@ -199,7 +199,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.6';
+  APPLICATION_VERSION = '1.2.7';
 
 {$R *.dfm}
 
