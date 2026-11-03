@@ -26,15 +26,29 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Color = $00EAF0F5
     ParentBackground = False
     TabOrder = 0
-    object StatusLabel: TLabel
-      Left = 950
-      Top = 18
-      Width = 210
-      Height = 13
-      Caption = 'Medya veya PDF klasoru secin.'
-      Font.Color = $00546270
-      Font.Style = [fsBold]
-      ParentFont = False
+    object PathGroupBevel: TBevel
+      Left = 8
+      Top = 7
+      Width = 824
+      Height = 39
+      Shape = bsBox
+      Style = bsRaised
+    end
+    object ViewGroupBevel: TBevel
+      Left = 8
+      Top = 40
+      Width = 1160
+      Height = 35
+      Shape = bsBox
+      Style = bsRaised
+    end
+    object ActionGroupBevel: TBevel
+      Left = 834
+      Top = 7
+      Width = 108
+      Height = 39
+      Shape = bsBox
+      Style = bsRaised
     end
     object FolderEdit: TEdit
       Left = 16
@@ -222,6 +236,30 @@ object FrmVisualFileManager: TFrmVisualFileManager
       OnDblClick = FileListDblClick
       OnMouseEnter = FileListMouseEnter
     end
+  end
+  object StatusPanel: TPanel
+    Left = 0
+    Top = 732
+    Width = 1180
+    Height = 28
+    Align = alBottom
+    BevelInner = bvLowered
+    BevelOuter = bvRaised
+    BevelWidth = 1
+    Color = $00E6EDF3
+    ParentBackground = False
+    TabOrder = 2
+    object StatusLabel: TLabel
+      Left = 12
+      Top = 7
+      Width = 1000
+      Height = 13
+      Caption = 'Medya veya PDF klasoru secin.'
+      Font.Color = $00435463
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+
   end
   object SearchTimer: TTimer
     Enabled = False
