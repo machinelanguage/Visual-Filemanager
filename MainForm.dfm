@@ -5,7 +5,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
   ClientHeight = 760
   ClientWidth = 1180
   Constraints.MinHeight = 520
-  Constraints.MinWidth = 380
+  Constraints.MinWidth = 480
   Color = $00D9E2EA
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -296,6 +296,22 @@ object FrmVisualFileManager: TFrmVisualFileManager
         '250 ms'
         '450 ms'
         '700 ms')
+    end
+    object AnimationDistanceBox: TComboBox
+      Left = 784
+      Top = 2
+      Width = 100
+      Height = 24
+      Style = csDropDownList
+      ItemIndex = 1
+      TabOrder = 2
+      Text = 'Normal'
+      OnChange = AnimationDistanceChange
+      Items.Strings = (
+        'Yakin'
+        'Normal'
+        'Uzak'
+        'Cok uzak')
     end
 
   end
