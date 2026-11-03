@@ -4,7 +4,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
   Caption = 'Dosya Yoneticisi'
   ClientHeight = 760
   ClientWidth = 1180
-  Color = 16250871
+  Color = $00D9E2EA
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -11
@@ -21,7 +21,10 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Width = 1180
     Height = 104
     Align = alTop
-    BevelOuter = bvNone
+    BevelOuter = bvRaised
+    BevelWidth = 2
+    Color = $00EAF0F5
+    ParentBackground = False
     TabOrder = 0
     object StatusLabel: TLabel
       Left = 950
@@ -29,6 +32,9 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Width = 210
       Height = 13
       Caption = 'Medya veya PDF klasoru secin.'
+      Font.Color = $00546270
+      Font.Style = [fsBold]
+      ParentFont = False
     end
     object FolderEdit: TEdit
       Left = 16
@@ -160,47 +166,62 @@ object FrmVisualFileManager: TFrmVisualFileManager
         'Alt klasore gore grupla')
     end
   end
-  object FileList: TListView
+  object FileAreaPanel: TPanel
     Left = 0
     Top = 104
     Width = 1180
     Height = 656
     Align = alClient
-    Columns = <
-      item
-        Caption = 'Dosya adi'
-        Width = 320
-      end
-      item
-        Caption = 'Uzanti'
-        Width = 90
-      end
-      item
-        Caption = 'Boyut'
-        Width = 105
-      end
-      item
-        Caption = 'Son degisiklik'
-        Width = 150
-      end
-      item
-        Caption = 'Klasor'
-        Width = 220
-      end
-      item
-        Caption = 'Tam yol'
-        Width = 360
-      end>
-    LargeImages = ThumbnailImages
-    OwnerData = True
-    ReadOnly = True
-    RowSelect = True
+    BevelInner = bvLowered
+    BevelOuter = bvRaised
+    BevelWidth = 2
+    Color = $00C7D2DC
+    ParentBackground = False
     TabOrder = 1
-    ViewStyle = vsReport
-    OnClick = FileListClick
-    OnData = FileListData
-    OnDblClick = FileListDblClick
-    OnMouseEnter = FileListMouseEnter
+    object FileList: TListView
+      Left = 3
+      Top = 3
+      Width = 1174
+      Height = 650
+      Align = alClient
+      Columns = <
+        item
+          Caption = 'Dosya adi'
+          Width = 320
+        end
+        item
+          Caption = 'Uzanti'
+          Width = 90
+        end
+        item
+          Caption = 'Boyut'
+          Width = 105
+        end
+        item
+          Caption = 'Son degisiklik'
+          Width = 150
+        end
+        item
+          Caption = 'Klasor'
+          Width = 220
+        end
+        item
+          Caption = 'Tam yol'
+          Width = 360
+        end>
+      BorderStyle = bsNone
+      Color = clWhite
+      LargeImages = ThumbnailImages
+      OwnerData = True
+      ReadOnly = True
+      RowSelect = True
+      TabOrder = 0
+      ViewStyle = vsReport
+      OnClick = FileListClick
+      OnData = FileListData
+      OnDblClick = FileListDblClick
+      OnMouseEnter = FileListMouseEnter
+    end
   end
   object SearchTimer: TTimer
     Enabled = False
