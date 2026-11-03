@@ -113,6 +113,7 @@ type
     SearchTimer: TTimer;
     ScanTimer: TTimer;
     ThumbnailTimer: TTimer;
+    ThumbnailEffectTimer: TTimer;
     MonitorTimer: TTimer;
     ThumbnailImages: TImageList;
     ThumbnailStagingImages: TImageList;
@@ -132,6 +133,7 @@ type
     procedure FilterChange(Sender: TObject);
     procedure ScanTimerTick(Sender: TObject);
     procedure ThumbnailTimerTick(Sender: TObject);
+    procedure ThumbnailEffectTimerTick(Sender: TObject);
     procedure MonitorTimerTick(Sender: TObject);
     procedure FileListData(Sender: TObject; Item: TListItem);
     procedure FileListClick(Sender: TObject);
@@ -158,11 +160,16 @@ type
     FPendingFileFilter: TFileTypeFilter;
     FStartupScanDone: Boolean;
     FLastScanUiTick: Cardinal;
+    FThumbnailEffectMode: Integer;
+    FThumbnailSlideOffset: Integer;
+    FThumbnailSlideStep: Integer;
+    FThumbnailFadeDirection: Integer;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
     procedure PublishThumbnails;
+    procedure StartThumbnailEffect;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -207,7 +214,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.15';
+  APPLICATION_VERSION = '1.2.16';
 
 {$R *.dfm}
 
@@ -635,6 +642,7 @@ begin
   ScanTimer.Enabled := False;
   SearchTimer.Enabled := False;
   ThumbnailTimer.Enabled := False;
+  ThumbnailEffectTimer.Enabled := False;
   StopFolderMonitor;
   if Assigned(FScanWorker) then
   begin
@@ -762,6 +770,85 @@ begin
       SendMessage(FileList.Handle, WM_SETREDRAW, 1, 0);
       FileList.Invalidate;
     end;
+  end;
+  if AnimationBox.ItemIndex >= 3 then
+    StartThumbnailEffect;
+end;
+
+procedure TFrmVisualFileManager.StartThumbnailEffect;
+var
+  Travel: Integer;
+begin
+  ThumbnailEffectTimer.Enabled := False;
+  FThumbnailEffectMode := AnimationBox.ItemIndex;
+
+  case FThumbnailEffectMode of
+    3, 4:
+      begin
+        Travel := Min(140, Max(60, FileAreaPanel.ClientWidth div 4));
+        if FThumbnailEffectMode = 3 then
+          FThumbnailSlideOffset := -Travel
+        else
+          FThumbnailSlideOffset := Travel;
+        FThumbnailSlideStep := Max(12, Travel div 8);
+        FileList.Align := alNone;
+        FileList.SetBounds(3 + FThumbnailSlideOffset, 3,
+          Max(1, FileAreaPanel.ClientWidth - 6),
+          Max(1, FileAreaPanel.ClientHeight - 6));
+        ThumbnailEffectTimer.Enabled := True;
+      end;
+    5:
+      begin
+        FThumbnailFadeDirection := -1;
+        AlphaBlend := True;
+        AlphaBlendValue := 255;
+        ThumbnailEffectTimer.Enabled := True;
+      end;
+  end;
+end;
+
+procedure TFrmVisualFileManager.ThumbnailEffectTimerTick(Sender: TObject);
+var
+  NewAlpha: Integer;
+begin
+  case FThumbnailEffectMode of
+    3, 4:
+      begin
+        if FThumbnailSlideOffset < 0 then
+          Inc(FThumbnailSlideOffset, FThumbnailSlideStep)
+        else if FThumbnailSlideOffset > 0 then
+          Dec(FThumbnailSlideOffset, FThumbnailSlideStep);
+
+        if Abs(FThumbnailSlideOffset) <= FThumbnailSlideStep then
+        begin
+          FThumbnailSlideOffset := 0;
+          FileList.Align := alClient;
+          ThumbnailEffectTimer.Enabled := False;
+          Exit;
+        end;
+        FileList.SetBounds(3 + FThumbnailSlideOffset, 3,
+          Max(1, FileAreaPanel.ClientWidth - 6),
+          Max(1, FileAreaPanel.ClientHeight - 6));
+      end;
+    5:
+      begin
+        NewAlpha := AlphaBlendValue + (FThumbnailFadeDirection * 16);
+        if (FThumbnailFadeDirection < 0) and (NewAlpha <= 190) then
+        begin
+          NewAlpha := 190;
+          FThumbnailFadeDirection := 1;
+        end
+        else if (FThumbnailFadeDirection > 0) and (NewAlpha >= 255) then
+        begin
+          AlphaBlendValue := 255;
+          AlphaBlend := False;
+          ThumbnailEffectTimer.Enabled := False;
+          Exit;
+        end;
+        AlphaBlendValue := NewAlpha;
+      end;
+  else
+    ThumbnailEffectTimer.Enabled := False;
   end;
 end;
 
@@ -1128,6 +1215,9 @@ end;
 
 procedure TFrmVisualFileManager.ThumbnailAnimationChange(Sender: TObject);
 begin
+  ThumbnailEffectTimer.Enabled := False;
+  FileList.Align := alClient;
+  AlphaBlend := False;
   { VCL list views do not have GPU alpha transitions. These modes control
     safe staged publishing of the virtual image list instead. }
   case AnimationBox.ItemIndex of
