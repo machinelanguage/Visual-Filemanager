@@ -199,7 +199,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.9';
+  APPLICATION_VERSION = '1.2.10';
 
 {$R *.dfm}
 
@@ -1325,19 +1325,25 @@ begin
   Picture := TPicture.Create;
   Bitmap := TBitmap.Create;
   try
-    Picture.LoadFromFile(CacheFile);
-    { Display each cached image as a photo frame. The effect is drawn only
-      in the image list, so cached JPEG files remain compact and scanning
-      stays responsive. }
+    try
+      Picture.LoadFromFile(CacheFile);
+    except
+      { A stopped video/image extraction can leave an empty JPEG in the
+        cache. Recreate only that cache item instead of silently hiding it. }
+      DeleteFile(CacheFile);
+      CreateGenericThumbnail(FFiles[AIndex], CacheFile);
+      Picture.LoadFromFile(CacheFile);
+    end;
+
+    { The card is created in memory. Cache files remain ordinary JPEGs. }
     Bitmap.SetSize(160, 120);
+    Bitmap.Canvas.Brush.Style := bsSolid;
     Bitmap.Canvas.Brush.Color := $00E7EDF2;
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
-
-    { Soft drop shadow behind the raised frame. }
     Bitmap.Canvas.Brush.Color := $008C99A3;
     Bitmap.Canvas.FillRect(Rect(8, 8, 158, 119));
 
-    { White outer frame and warm mat border. }
+    { White photo frame, warm mat and inset image. }
     Bitmap.Canvas.Brush.Color := clWhite;
     Bitmap.Canvas.FillRect(Rect(1, 1, 153, 114));
     Bitmap.Canvas.Pen.Color := $00C4CDD4;
@@ -1346,21 +1352,20 @@ begin
     Bitmap.Canvas.FillRect(Rect(5, 5, 149, 110));
     Bitmap.Canvas.Pen.Color := $00D4CDBF;
     Bitmap.Canvas.Rectangle(5, 5, 149, 110);
-
-    { The inset photo area keeps a visible frame on every side. }
     Bitmap.Canvas.StretchDraw(Rect(10, 10, 144, 104), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $008A8A8A;
+    Bitmap.Canvas.Brush.Style := bsClear;
     Bitmap.Canvas.Rectangle(9, 9, 145, 105);
-
-    { Top-left highlight gives the frame its depth. }
     Bitmap.Canvas.Pen.Color := clWhite;
     Bitmap.Canvas.MoveTo(2, 2);
     Bitmap.Canvas.LineTo(151, 2);
     Bitmap.Canvas.LineTo(151, 112);
+
     ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
     FThumbnailImagesDirty := True;
   except
+    { Keep the list responsive; the generic placeholder remains available. }
   end;
   Bitmap.Free;
   Picture.Free;
