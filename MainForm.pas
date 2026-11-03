@@ -199,7 +199,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.8';
+  APPLICATION_VERSION = '1.2.9';
 
 {$R *.dfm}
 
@@ -1326,23 +1326,37 @@ begin
   Bitmap := TBitmap.Create;
   try
     Picture.LoadFromFile(CacheFile);
-    { Keep the original cached image compact, then draw a lightweight card
-      around it only in the image list. This provides a 3D grid appearance
-      without creating controls for every file. }
+    { Display each cached image as a photo frame. The effect is drawn only
+      in the image list, so cached JPEG files remain compact and scanning
+      stays responsive. }
     Bitmap.SetSize(160, 120);
     Bitmap.Canvas.Brush.Color := $00E7EDF2;
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
-    Bitmap.Canvas.Brush.Color := $0095A3AE;
-    Bitmap.Canvas.FillRect(Rect(6, 6, 160, 120));
+
+    { Soft drop shadow behind the raised frame. }
+    Bitmap.Canvas.Brush.Color := $008C99A3;
+    Bitmap.Canvas.FillRect(Rect(8, 8, 158, 119));
+
+    { White outer frame and warm mat border. }
     Bitmap.Canvas.Brush.Color := clWhite;
-    Bitmap.Canvas.FillRect(Rect(1, 1, 155, 115));
-    Bitmap.Canvas.Pen.Color := $00CBD5DD;
-    Bitmap.Canvas.Rectangle(1, 1, 155, 115);
-    Bitmap.Canvas.StretchDraw(Rect(5, 5, 151, 111), Picture.Graphic);
+    Bitmap.Canvas.FillRect(Rect(1, 1, 153, 114));
+    Bitmap.Canvas.Pen.Color := $00C4CDD4;
+    Bitmap.Canvas.Rectangle(1, 1, 153, 114);
+    Bitmap.Canvas.Brush.Color := $00F3EFE6;
+    Bitmap.Canvas.FillRect(Rect(5, 5, 149, 110));
+    Bitmap.Canvas.Pen.Color := $00D4CDBF;
+    Bitmap.Canvas.Rectangle(5, 5, 149, 110);
+
+    { The inset photo area keeps a visible frame on every side. }
+    Bitmap.Canvas.StretchDraw(Rect(10, 10, 144, 104), Picture.Graphic);
+    Bitmap.Canvas.Pen.Color := $008A8A8A;
+    Bitmap.Canvas.Rectangle(9, 9, 145, 105);
+
+    { Top-left highlight gives the frame its depth. }
     Bitmap.Canvas.Pen.Color := clWhite;
     Bitmap.Canvas.MoveTo(2, 2);
-    Bitmap.Canvas.LineTo(153, 2);
-    Bitmap.Canvas.LineTo(153, 113);
+    Bitmap.Canvas.LineTo(151, 2);
+    Bitmap.Canvas.LineTo(151, 112);
     ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
     FThumbnailImagesDirty := True;
