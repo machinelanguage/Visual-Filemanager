@@ -104,6 +104,7 @@ type
     ClickModeBox: TComboBox;
     FolderGroupBox: TComboBox;
     AnimationBox: TComboBox;
+    AnimationDurationBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -126,6 +127,7 @@ type
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
     procedure ThumbnailAnimationChange(Sender: TObject);
+    procedure AnimationDurationChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -164,12 +166,15 @@ type
     FThumbnailSlideOffset: Integer;
     FThumbnailSlideStep: Integer;
     FThumbnailFadeDirection: Integer;
+    FThumbnailFadeStep: Integer;
+    FThumbnailFadeHoldTicks: Integer;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
     procedure PublishThumbnails;
     procedure StartThumbnailEffect;
+    function ThumbnailAnimationDuration: Integer;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -214,7 +219,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.16';
+  APPLICATION_VERSION = '1.2.17';
 
 {$R *.dfm}
 
@@ -676,7 +681,8 @@ procedure TFrmVisualFileManager.LoadSettings;
 var
   Ini: TIniFile;
   SavedFolder: string;
-  SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation: Integer;
+  SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation,
+    SavedAnimationDuration: Integer;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -711,6 +717,12 @@ begin
       AnimationBox.ItemIndex := SavedAnimation
     else
       AnimationBox.ItemIndex := 1;
+    SavedAnimationDuration := Ini.ReadInteger('General', 'ThumbnailAnimationDuration', 1);
+    if (SavedAnimationDuration >= 0) and
+      (SavedAnimationDuration < AnimationDurationBox.Items.Count) then
+      AnimationDurationBox.ItemIndex := SavedAnimationDuration
+    else
+      AnimationDurationBox.ItemIndex := 1;
   finally
     Ini.Free;
   end;
@@ -735,6 +747,8 @@ begin
     Ini.WriteInteger('General', 'FileFilter', FilterBox.ItemIndex);
     Ini.WriteInteger('General', 'FolderGrouping', FolderGroupBox.ItemIndex);
     Ini.WriteInteger('General', 'ThumbnailAnimation', AnimationBox.ItemIndex);
+    Ini.WriteInteger('General', 'ThumbnailAnimationDuration',
+      AnimationDurationBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -790,18 +804,32 @@ begin
           FThumbnailSlideOffset := -Travel
         else
           FThumbnailSlideOffset := Travel;
-        FThumbnailSlideStep := Max(12, Travel div 8);
+        FThumbnailSlideStep := Max(1, (Travel * ThumbnailEffectTimer.Interval +
+          ThumbnailAnimationDuration - 1) div ThumbnailAnimationDuration);
         FileList.Align := alNone;
         FileList.SetBounds(3 + FThumbnailSlideOffset, 3,
           Max(1, FileAreaPanel.ClientWidth - 6),
           Max(1, FileAreaPanel.ClientHeight - 6));
         ThumbnailEffectTimer.Enabled := True;
       end;
-    5:
+    5, 6:
       begin
-        FThumbnailFadeDirection := -1;
+        FThumbnailFadeStep := Max(1, (65 * ThumbnailEffectTimer.Interval) div
+          ThumbnailAnimationDuration);
+        FThumbnailFadeHoldTicks := 0;
         AlphaBlend := True;
-        AlphaBlendValue := 255;
+        if FThumbnailEffectMode = 5 then
+        begin
+          { Fade in: reveal the refreshed thumbnail view. }
+          FThumbnailFadeDirection := 1;
+          AlphaBlendValue := 190;
+        end
+        else
+        begin
+          { Fade out: dim briefly, then restore the normal form opacity. }
+          FThumbnailFadeDirection := -1;
+          AlphaBlendValue := 255;
+        end;
         ThumbnailEffectTimer.Enabled := True;
       end;
   end;
@@ -832,17 +860,34 @@ begin
       end;
     5:
       begin
-        NewAlpha := AlphaBlendValue + (FThumbnailFadeDirection * 16);
-        if (FThumbnailFadeDirection < 0) and (NewAlpha <= 190) then
-        begin
-          NewAlpha := 190;
-          FThumbnailFadeDirection := 1;
-        end
-        else if (FThumbnailFadeDirection > 0) and (NewAlpha >= 255) then
+        NewAlpha := AlphaBlendValue + FThumbnailFadeStep;
+        if NewAlpha >= 255 then
         begin
           AlphaBlendValue := 255;
           AlphaBlend := False;
           ThumbnailEffectTimer.Enabled := False;
+          Exit;
+        end;
+        AlphaBlendValue := NewAlpha;
+      end;
+    6:
+      begin
+        if FThumbnailFadeHoldTicks > 0 then
+        begin
+          Dec(FThumbnailFadeHoldTicks);
+          if FThumbnailFadeHoldTicks = 0 then
+          begin
+            AlphaBlendValue := 255;
+            AlphaBlend := False;
+            ThumbnailEffectTimer.Enabled := False;
+          end;
+          Exit;
+        end;
+        NewAlpha := AlphaBlendValue - FThumbnailFadeStep;
+        if NewAlpha <= 190 then
+        begin
+          AlphaBlendValue := 190;
+          FThumbnailFadeHoldTicks := 4;
           Exit;
         end;
         AlphaBlendValue := NewAlpha;
@@ -935,8 +980,9 @@ begin
     ViewGroupBevel.SetBounds(6, 139, ClientWidth - 12, 106);
   end;
 
-  AnimationBox.SetBounds(Max(160, ClientWidth - 180), 2, 168, 24);
-  StatusLabel.Width := AnimationBox.Left - 24;
+  AnimationBox.SetBounds(Max(200, ClientWidth - 180), 2, 168, 24);
+  AnimationDurationBox.SetBounds(Max(92, AnimationBox.Left - 108), 2, 100, 24);
+  StatusLabel.Width := AnimationDurationBox.Left - 24;
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
@@ -1211,6 +1257,22 @@ begin
       StartFolderMonitor;
     end;
   end;
+end;
+
+function TFrmVisualFileManager.ThumbnailAnimationDuration: Integer;
+begin
+  case AnimationDurationBox.ItemIndex of
+    0: Result := 120;
+    2: Result := 450;
+    3: Result := 700;
+  else
+    Result := 250;
+  end;
+end;
+
+procedure TFrmVisualFileManager.AnimationDurationChange(Sender: TObject);
+begin
+  SaveSettings;
 end;
 
 procedure TFrmVisualFileManager.ThumbnailAnimationChange(Sender: TObject);
