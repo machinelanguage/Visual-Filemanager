@@ -7,7 +7,7 @@ uses
   System.Classes,
   System.Generics.Collections, System.Generics.Defaults, System.SyncObjs,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
-  Vcl.Dialogs, Vcl.ImgList, System.IniFiles, System.ImageList;
+  Vcl.Dialogs, Vcl.ImgList, System.IniFiles, System.ImageList, Vcl.Graphics;
 
 type
   TFileTypeFilter = (ftMediaPdf, ftAllFiles, ftImages, ftVideos, ftPdf,
@@ -224,11 +224,11 @@ var
 implementation
 
 uses
-  System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl, Vcl.Graphics,
+  System.IOUtils, System.StrUtils, System.Math, Vcl.FileCtrl,
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.22';
+  APPLICATION_VERSION = '1.2.23';
 
 {$R *.dfm}
 
