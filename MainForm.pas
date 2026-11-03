@@ -222,7 +222,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.19';
+  APPLICATION_VERSION = '1.2.20';
 
 {$R *.dfm}
 
@@ -816,7 +816,8 @@ begin
   case FThumbnailEffectMode of
     3, 4:
       begin
-        Travel := Min(140, Max(60, FileAreaPanel.ClientWidth div 4));
+        { Start farther outside the visible area for a clearer entrance. }
+        Travel := Min(220, Max(110, FileAreaPanel.ClientWidth div 3));
         if FThumbnailEffectMode = 3 then
           FThumbnailSlideOffset := -Travel
         else
