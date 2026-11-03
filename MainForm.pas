@@ -199,7 +199,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.7';
+  APPLICATION_VERSION = '1.2.8';
 
 {$R *.dfm}
 
@@ -1326,11 +1326,23 @@ begin
   Bitmap := TBitmap.Create;
   try
     Picture.LoadFromFile(CacheFile);
+    { Keep the original cached image compact, then draw a lightweight card
+      around it only in the image list. This provides a 3D grid appearance
+      without creating controls for every file. }
     Bitmap.SetSize(160, 120);
-    Bitmap.Canvas.Brush.Color := clWhite;
+    Bitmap.Canvas.Brush.Color := $00E7EDF2;
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
-    Bitmap.Canvas.StretchDraw(Rect(0, 0, Bitmap.Width, Bitmap.Height),
-      Picture.Graphic);
+    Bitmap.Canvas.Brush.Color := $0095A3AE;
+    Bitmap.Canvas.FillRect(Rect(6, 6, 160, 120));
+    Bitmap.Canvas.Brush.Color := clWhite;
+    Bitmap.Canvas.FillRect(Rect(1, 1, 155, 115));
+    Bitmap.Canvas.Pen.Color := $00CBD5DD;
+    Bitmap.Canvas.Rectangle(1, 1, 155, 115);
+    Bitmap.Canvas.StretchDraw(Rect(5, 5, 151, 111), Picture.Graphic);
+    Bitmap.Canvas.Pen.Color := clWhite;
+    Bitmap.Canvas.MoveTo(2, 2);
+    Bitmap.Canvas.LineTo(153, 2);
+    Bitmap.Canvas.LineTo(153, 113);
     ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
     FThumbnailImagesDirty := True;
