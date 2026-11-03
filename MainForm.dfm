@@ -278,7 +278,24 @@ object FrmVisualFileManager: TFrmVisualFileManager
         'Dalga yukleme'
         'Soldan saga kay'
         'Sagdan sola kay'
-        'Fade in / out')
+        'Fade in'
+        'Fade out')
+    end
+    object AnimationDurationBox: TComboBox
+      Left = 892
+      Top = 2
+      Width = 100
+      Height = 24
+      Style = csDropDownList
+      ItemIndex = 1
+      TabOrder = 1
+      Text = '250 ms'
+      OnChange = AnimationDurationChange
+      Items.Strings = (
+        '120 ms'
+        '250 ms'
+        '450 ms'
+        '700 ms')
     end
 
   end
