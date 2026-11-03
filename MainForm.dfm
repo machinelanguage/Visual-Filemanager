@@ -275,7 +275,10 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Items.Strings = (
         'Anlik yukleme'
         'Kademeli yukleme'
-        'Dalga yukleme')
+        'Dalga yukleme'
+        'Soldan saga kay'
+        'Sagdan sola kay'
+        'Fade in / out')
     end
 
   end
@@ -298,6 +301,13 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Interval = 30
     OnTimer = ThumbnailTimerTick
     Left = 904
+    Top = 280
+  end
+  object ThumbnailEffectTimer: TTimer
+    Enabled = False
+    Interval = 16
+    OnTimer = ThumbnailEffectTimerTick
+    Left = 824
     Top = 280
   end
   object MonitorTimer: TTimer
