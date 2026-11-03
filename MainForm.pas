@@ -222,7 +222,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.18';
+  APPLICATION_VERSION = '1.2.19';
 
 {$R *.dfm}
 
@@ -1290,6 +1290,8 @@ end;
 procedure TFrmVisualFileManager.AnimationDurationChange(Sender: TObject);
 begin
   SaveSettings;
+  if ThumbnailEffectTimer.Enabled and (FThumbnailEffectMode >= 3) then
+    StartThumbnailEffect;
 end;
 
 procedure TFrmVisualFileManager.ThumbnailAnimationChange(Sender: TObject);
@@ -1305,6 +1307,12 @@ begin
     ThumbnailTimer.Interval := 30;      { compact or grouped reveal }
   end;
   SaveSettings;
+
+  { Apply slide/fade choices immediately when a thumbnail page is already
+    visible. Loading effects for the other modes apply to the next queue. }
+  if (AnimationBox.ItemIndex >= 3) and (ViewBox.ItemIndex = 1) and
+    (FThumbnailIndexes.Count > 0) then
+    StartThumbnailEffect;
 end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);
