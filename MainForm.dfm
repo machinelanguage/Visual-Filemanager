@@ -313,6 +313,16 @@ object FrmVisualFileManager: TFrmVisualFileManager
         'Uzak'
         'Cok uzak')
     end
+    object BackgroundColorBox: TColorBox
+      Left = 676
+      Top = 2
+      Width = 100
+      Height = 24
+      Selected = $00D9E2EA
+      Style = [cbStandardColors, cbExtendedColors, cbCustomColor]
+      TabOrder = 3
+      OnChange = BackgroundColorChange
+    end
 
   end
   object SearchTimer: TTimer
