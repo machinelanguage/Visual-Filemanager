@@ -168,12 +168,15 @@ type
     FThumbnailFadeDirection: Integer;
     FThumbnailFadeStep: Integer;
     FThumbnailFadeHoldTicks: Integer;
+    FInitialThumbnailPageEnd: Integer;
+    FThumbnailPageAnimationPlayed: Boolean;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
     procedure PublishThumbnails;
     procedure StartThumbnailEffect;
+    procedure TryStartThumbnailPageAnimation;
     function ThumbnailAnimationDuration: Integer;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
@@ -219,7 +222,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.17';
+  APPLICATION_VERSION = '1.2.18';
 
 {$R *.dfm}
 
@@ -785,8 +788,22 @@ begin
       FileList.Invalidate;
     end;
   end;
+end;
+
+procedure TFrmVisualFileManager.TryStartThumbnailPageAnimation;
+begin
+  { Do not animate placeholders. The first visible page must be fully staged,
+    and the background file scan must have completed first. }
+  if FThumbnailPageAnimationPlayed or (FInitialThumbnailPageEnd = 0) or
+    (FThumbnailQueuePosition < FInitialThumbnailPageEnd) or
+    Assigned(FVideoWorker) or Assigned(FScanWorker) then
+    Exit;
+
+  if FThumbnailImagesDirty then
+    PublishThumbnails;
   if AnimationBox.ItemIndex >= 3 then
     StartThumbnailEffect;
+  FThumbnailPageAnimationPlayed := True;
 end;
 
 procedure TFrmVisualFileManager.StartThumbnailEffect;
@@ -1387,6 +1404,8 @@ begin
   LastIndex := Min(FVisibleItems.Count - 1, FirstIndex + ThumbnailPageSize - 1);
   for I := FirstIndex to LastIndex do
     QueueThumbnail(FVisibleItems[I]);
+  if (FirstIndex = 0) and not FThumbnailPageAnimationPlayed then
+    FInitialThumbnailPageEnd := FThumbnailQueue.Count;
   if FThumbnailQueuePosition < FThumbnailQueue.Count then
     ThumbnailTimer.Enabled := True;
 end;
@@ -1438,6 +1457,8 @@ begin
   FThumbnailQueue.Clear;
   FQueuedThumbnailFiles.Clear;
   FThumbnailQueuePosition := 0;
+  FInitialThumbnailPageEnd := 0;
+  FThumbnailPageAnimationPlayed := False;
   Query := Trim(SearchEdit.Text);
   for I := 0 to FFiles.Count - 1 do
   begin
@@ -1706,6 +1727,8 @@ begin
 
   if (AnimationBox.ItemIndex = 1) and FThumbnailImagesDirty then
     PublishThumbnails;
+
+  TryStartThumbnailPageAnimation;
 
   if Assigned(FVideoWorker) or
     (FThumbnailQueuePosition < FThumbnailQueue.Count) then
