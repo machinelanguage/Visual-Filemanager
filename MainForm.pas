@@ -103,6 +103,7 @@ type
     DeleteButton: TButton;
     ClickModeBox: TComboBox;
     FolderGroupBox: TComboBox;
+    AnimationBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -123,6 +124,7 @@ type
     procedure DeleteClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
+    procedure ThumbnailAnimationChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -205,7 +207,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.14';
+  APPLICATION_VERSION = '1.2.15';
 
 {$R *.dfm}
 
@@ -666,7 +668,7 @@ procedure TFrmVisualFileManager.LoadSettings;
 var
   Ini: TIniFile;
   SavedFolder: string;
-  SavedView, SavedClickMode, SavedFilter, SavedGroup: Integer;
+  SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation: Integer;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -696,10 +698,19 @@ begin
       FolderGroupBox.ItemIndex := SavedGroup
     else
       FolderGroupBox.ItemIndex := 0;
+    SavedAnimation := Ini.ReadInteger('General', 'ThumbnailAnimation', 1);
+    if (SavedAnimation >= 0) and (SavedAnimation < AnimationBox.Items.Count) then
+      AnimationBox.ItemIndex := SavedAnimation
+    else
+      AnimationBox.ItemIndex := 1;
   finally
     Ini.Free;
   end;
   CurrentGroupByFolder := FolderGroupBox.ItemIndex = 1;
+  if AnimationBox.ItemIndex = 2 then
+    ThumbnailTimer.Interval := 90
+  else
+    ThumbnailTimer.Interval := 30;
   ViewChange(nil);
 end;
 
@@ -715,6 +726,7 @@ begin
     Ini.WriteInteger('General', 'SortMode', SortBox.ItemIndex);
     Ini.WriteInteger('General', 'FileFilter', FilterBox.ItemIndex);
     Ini.WriteInteger('General', 'FolderGrouping', FolderGroupBox.ItemIndex);
+    Ini.WriteInteger('General', 'ThumbnailAnimation', AnimationBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -835,6 +847,9 @@ begin
     ActionGroupBevel.SetBounds(6, 37, ClientWidth - 12, 74);
     ViewGroupBevel.SetBounds(6, 139, ClientWidth - 12, 106);
   end;
+
+  AnimationBox.SetBounds(Max(160, ClientWidth - 180), 2, 168, 24);
+  StatusLabel.Width := AnimationBox.Left - 24;
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
@@ -1109,6 +1124,18 @@ begin
       StartFolderMonitor;
     end;
   end;
+end;
+
+procedure TFrmVisualFileManager.ThumbnailAnimationChange(Sender: TObject);
+begin
+  { VCL list views do not have GPU alpha transitions. These modes control
+    safe staged publishing of the virtual image list instead. }
+  case AnimationBox.ItemIndex of
+    2: ThumbnailTimer.Interval := 90;  { one card at a time }
+  else
+    ThumbnailTimer.Interval := 30;      { compact or grouped reveal }
+  end;
+  SaveSettings;
 end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);
@@ -1474,10 +1501,8 @@ begin
 end;
 
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
-const
-  CachedItemsPerTick = 4;
 var
-  FileIndex, LoadedCount: Integer;
+  FileIndex, LoadedCount, ItemsPerTick: Integer;
   CacheFile: string;
   WasCached: Boolean;
 begin
@@ -1494,6 +1519,10 @@ begin
   end;
 
   LoadedCount := 0;
+  if AnimationBox.ItemIndex = 2 then
+    ItemsPerTick := 1
+  else
+    ItemsPerTick := 4;
   while FThumbnailQueuePosition < FThumbnailQueue.Count do
   begin
     FileIndex := FThumbnailQueue[FThumbnailQueuePosition];
@@ -1511,11 +1540,20 @@ begin
     RedrawThumbnailItem(FileIndex);
     Inc(LoadedCount);
 
-    { Existing cached thumbnails are cheap to load, so show the initial
-      viewport promptly. New image decoding stays one-at-a-time. }
-    if not WasCached or (LoadedCount >= CachedItemsPerTick) then
+    { Existing cached thumbnails are cheap to load. The selected mode
+      determines whether the staged image list is published as a group or
+      one card at a time. }
+    if (AnimationBox.ItemIndex = 2) and FThumbnailImagesDirty then
+    begin
+      PublishThumbnails;
+      Break;
+    end;
+    if not WasCached or (LoadedCount >= ItemsPerTick) then
       Break;
   end;
+
+  if (AnimationBox.ItemIndex = 1) and FThumbnailImagesDirty then
+    PublishThumbnails;
 
   if Assigned(FVideoWorker) or
     (FThumbnailQueuePosition < FThumbnailQueue.Count) then
