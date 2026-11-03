@@ -105,6 +105,7 @@ type
     FolderGroupBox: TComboBox;
     AnimationBox: TComboBox;
     AnimationDurationBox: TComboBox;
+    AnimationDistanceBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -128,6 +129,7 @@ type
     procedure FolderGroupChange(Sender: TObject);
     procedure ThumbnailAnimationChange(Sender: TObject);
     procedure AnimationDurationChange(Sender: TObject);
+    procedure AnimationDistanceChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -178,6 +180,7 @@ type
     procedure StartThumbnailEffect;
     procedure TryStartThumbnailPageAnimation;
     function ThumbnailAnimationDuration: Integer;
+    function ThumbnailAnimationDistance: Integer;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -222,7 +225,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.20';
+  APPLICATION_VERSION = '1.2.21';
 
 {$R *.dfm}
 
@@ -685,7 +688,7 @@ var
   Ini: TIniFile;
   SavedFolder: string;
   SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation,
-    SavedAnimationDuration: Integer;
+    SavedAnimationDuration, SavedAnimationDistance: Integer;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -726,6 +729,12 @@ begin
       AnimationDurationBox.ItemIndex := SavedAnimationDuration
     else
       AnimationDurationBox.ItemIndex := 1;
+    SavedAnimationDistance := Ini.ReadInteger('General', 'ThumbnailAnimationDistance', 1);
+    if (SavedAnimationDistance >= 0) and
+      (SavedAnimationDistance < AnimationDistanceBox.Items.Count) then
+      AnimationDistanceBox.ItemIndex := SavedAnimationDistance
+    else
+      AnimationDistanceBox.ItemIndex := 1;
   finally
     Ini.Free;
   end;
@@ -752,6 +761,8 @@ begin
     Ini.WriteInteger('General', 'ThumbnailAnimation', AnimationBox.ItemIndex);
     Ini.WriteInteger('General', 'ThumbnailAnimationDuration',
       AnimationDurationBox.ItemIndex);
+    Ini.WriteInteger('General', 'ThumbnailAnimationDistance',
+      AnimationDistanceBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -816,8 +827,9 @@ begin
   case FThumbnailEffectMode of
     3, 4:
       begin
-        { Start farther outside the visible area for a clearer entrance. }
-        Travel := Min(220, Max(110, FileAreaPanel.ClientWidth div 3));
+        { User-selected offset, capped so part of the page remains visible. }
+        Travel := Min(ThumbnailAnimationDistance,
+          Max(50, FileAreaPanel.ClientWidth - 40));
         if FThumbnailEffectMode = 3 then
           FThumbnailSlideOffset := -Travel
         else
@@ -998,9 +1010,11 @@ begin
     ViewGroupBevel.SetBounds(6, 139, ClientWidth - 12, 106);
   end;
 
-  AnimationBox.SetBounds(Max(200, ClientWidth - 180), 2, 168, 24);
-  AnimationDurationBox.SetBounds(Max(92, AnimationBox.Left - 108), 2, 100, 24);
-  StatusLabel.Width := AnimationDurationBox.Left - 24;
+  AnimationBox.SetBounds(Max(300, ClientWidth - 180), 2, 168, 24);
+  AnimationDurationBox.SetBounds(Max(192, AnimationBox.Left - 108), 2, 100, 24);
+  AnimationDistanceBox.SetBounds(Max(84, AnimationDurationBox.Left - 108), 2,
+    100, 24);
+  StatusLabel.Width := Max(1, AnimationDistanceBox.Left - 24);
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
@@ -1286,6 +1300,24 @@ begin
   else
     Result := 250;
   end;
+end;
+
+function TFrmVisualFileManager.ThumbnailAnimationDistance: Integer;
+begin
+  case AnimationDistanceBox.ItemIndex of
+    0: Result := 80;
+    2: Result := 200;
+    3: Result := 260;
+  else
+    Result := 140;
+  end;
+end;
+
+procedure TFrmVisualFileManager.AnimationDistanceChange(Sender: TObject);
+begin
+  SaveSettings;
+  if ThumbnailEffectTimer.Enabled and (FThumbnailEffectMode in [3, 4]) then
+    StartThumbnailEffect;
 end;
 
 procedure TFrmVisualFileManager.AnimationDurationChange(Sender: TObject);
