@@ -106,6 +106,7 @@ type
     AnimationBox: TComboBox;
     AnimationDurationBox: TComboBox;
     AnimationDistanceBox: TComboBox;
+    BackgroundColorBox: TColorBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -130,6 +131,7 @@ type
     procedure ThumbnailAnimationChange(Sender: TObject);
     procedure AnimationDurationChange(Sender: TObject);
     procedure AnimationDistanceChange(Sender: TObject);
+    procedure BackgroundColorChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -181,6 +183,7 @@ type
     procedure TryStartThumbnailPageAnimation;
     function ThumbnailAnimationDuration: Integer;
     function ThumbnailAnimationDistance: Integer;
+    procedure ApplyBackgroundColor(const AColor: TColor);
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -225,7 +228,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.21';
+  APPLICATION_VERSION = '1.2.22';
 
 {$R *.dfm}
 
@@ -689,6 +692,7 @@ var
   SavedFolder: string;
   SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation,
     SavedAnimationDuration, SavedAnimationDistance: Integer;
+  SavedBackgroundColor: TColor;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
   Ini := TIniFile.Create(SettingsFileName);
@@ -735,6 +739,10 @@ begin
       AnimationDistanceBox.ItemIndex := SavedAnimationDistance
     else
       AnimationDistanceBox.ItemIndex := 1;
+    SavedBackgroundColor := TColor(Ini.ReadInteger('General', 'BackgroundColor',
+      Integer(Color)));
+    BackgroundColorBox.Selected := SavedBackgroundColor;
+    ApplyBackgroundColor(SavedBackgroundColor);
   finally
     Ini.Free;
   end;
@@ -763,6 +771,7 @@ begin
       AnimationDurationBox.ItemIndex);
     Ini.WriteInteger('General', 'ThumbnailAnimationDistance',
       AnimationDistanceBox.ItemIndex);
+    Ini.WriteInteger('General', 'BackgroundColor', Integer(Color));
   finally
     Ini.Free;
   end;
@@ -1010,11 +1019,13 @@ begin
     ViewGroupBevel.SetBounds(6, 139, ClientWidth - 12, 106);
   end;
 
-  AnimationBox.SetBounds(Max(300, ClientWidth - 180), 2, 168, 24);
-  AnimationDurationBox.SetBounds(Max(192, AnimationBox.Left - 108), 2, 100, 24);
-  AnimationDistanceBox.SetBounds(Max(84, AnimationDurationBox.Left - 108), 2,
+  AnimationBox.SetBounds(Max(314, ClientWidth - 166), 2, 154, 24);
+  AnimationDurationBox.SetBounds(Max(218, AnimationBox.Left - 96), 2, 90, 24);
+  AnimationDistanceBox.SetBounds(Max(122, AnimationDurationBox.Left - 96), 2,
+    90, 24);
+  BackgroundColorBox.SetBounds(Max(16, AnimationDistanceBox.Left - 106), 2,
     100, 24);
-  StatusLabel.Width := Max(1, AnimationDistanceBox.Left - 24);
+  StatusLabel.Width := Max(1, BackgroundColorBox.Left - 24);
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
@@ -1300,6 +1311,19 @@ begin
   else
     Result := 250;
   end;
+end;
+
+procedure TFrmVisualFileManager.ApplyBackgroundColor(
+  const AColor: TColor);
+begin
+  Color := AColor;
+  FileAreaPanel.Color := AColor;
+end;
+
+procedure TFrmVisualFileManager.BackgroundColorChange(Sender: TObject);
+begin
+  ApplyBackgroundColor(BackgroundColorBox.Selected);
+  SaveSettings;
 end;
 
 function TFrmVisualFileManager.ThumbnailAnimationDistance: Integer;
