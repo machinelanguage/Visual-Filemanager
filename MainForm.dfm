@@ -262,6 +262,21 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Font.Style = [fsBold]
       ParentFont = False
     end
+    object AnimationBox: TComboBox
+      Left = 1000
+      Top = 2
+      Width = 168
+      Height = 24
+      Style = csDropDownList
+      ItemIndex = 1
+      TabOrder = 0
+      Text = 'Kademeli yukleme'
+      OnChange = ThumbnailAnimationChange
+      Items.Strings = (
+        'Anlik yukleme'
+        'Kademeli yukleme'
+        'Dalga yukleme')
+    end
 
   end
   object SearchTimer: TTimer
