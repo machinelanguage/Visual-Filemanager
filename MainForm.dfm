@@ -4,6 +4,8 @@ object FrmVisualFileManager: TFrmVisualFileManager
   Caption = 'Dosya Yoneticisi'
   ClientHeight = 760
   ClientWidth = 1180
+  Constraints.MinHeight = 520
+  Constraints.MinWidth = 380
   Color = $00D9E2EA
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -12,6 +14,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
+  OnResize = FormResize
   OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
