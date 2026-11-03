@@ -228,7 +228,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.23';
+  APPLICATION_VERSION = '1.2.24';
 
 {$R *.dfm}
 
@@ -1318,6 +1318,10 @@ procedure TFrmVisualFileManager.ApplyBackgroundColor(
 begin
   Color := AColor;
   FileAreaPanel.Color := AColor;
+  { The thumbnail ground is owned by the native virtual list, not its
+    surrounding panel. Apply the color directly and repaint it immediately. }
+  FileList.Color := AColor;
+  FileList.Invalidate;
 end;
 
 procedure TFrmVisualFileManager.BackgroundColorChange(Sender: TObject);
