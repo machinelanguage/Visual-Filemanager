@@ -116,6 +116,7 @@ type
     ThumbnailImages: TImageList;
     ThumbnailStagingImages: TImageList;
     procedure FormShow(Sender: TObject);
+    procedure FormResize(Sender: TObject);
     procedure BrowseClick(Sender: TObject);
     procedure ScanClick(Sender: TObject);
     procedure StopClick(Sender: TObject);
@@ -204,7 +205,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.13';
+  APPLICATION_VERSION = '1.2.14';
 
 {$R *.dfm}
 
@@ -749,6 +750,90 @@ begin
       SendMessage(FileList.Handle, WM_SETREDRAW, 1, 0);
       FileList.Invalidate;
     end;
+  end;
+end;
+
+procedure TFrmVisualFileManager.FormResize(Sender: TObject);
+const
+  Margin = 12;
+  Gap = 8;
+  TouchHeight = 30;
+var
+  AvailableWidth, X, Y, ItemWidth: Integer;
+begin
+  AvailableWidth := ClientWidth - (Margin * 2);
+
+  { Wide layout: command bars remain on two compact rows. }
+  if ClientWidth >= 1100 then
+  begin
+    ToolPanel.Height := 104;
+    FolderEdit.SetBounds(Margin, 12, ClientWidth - 456, 24);
+    X := FolderEdit.Left + FolderEdit.Width + Gap;
+    BrowseButton.SetBounds(X, 10, 86, TouchHeight);
+    ScanButton.SetBounds(BrowseButton.Left + BrowseButton.Width + Gap, 10, 120,
+      TouchHeight);
+    StopButton.SetBounds(ScanButton.Left + ScanButton.Width + Gap, 10, 92,
+      TouchHeight);
+    DeleteButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 10, 100,
+      TouchHeight);
+    SearchEdit.SetBounds(Margin, 50, 340, 24);
+    SortBox.SetBounds(364, 50, 150, 24);
+    ViewBox.SetBounds(522, 50, 140, 24);
+    FilterBox.SetBounds(670, 50, 150, 24);
+    ClickModeBox.SetBounds(828, 50, 140, 24);
+    FolderGroupBox.SetBounds(976, 50, ClientWidth - 988, 24);
+    PathGroupBevel.SetBounds(6, 5, DeleteButton.Left + DeleteButton.Width,
+      40);
+    ActionGroupBevel.SetBounds(DeleteButton.Left - 4, 5,
+      DeleteButton.Width + 8, 40);
+    ViewGroupBevel.SetBounds(6, 44, ClientWidth - 12, 38);
+  end
+  else if ClientWidth >= 640 then
+  begin
+    ToolPanel.Height := 184;
+    FolderEdit.SetBounds(Margin, 10, AvailableWidth, 24);
+    BrowseButton.SetBounds(Margin, 42, 88, TouchHeight);
+    ScanButton.SetBounds(BrowseButton.Left + BrowseButton.Width + Gap, 42, 112,
+      TouchHeight);
+    StopButton.SetBounds(ScanButton.Left + ScanButton.Width + Gap, 42, 112,
+      TouchHeight);
+    DeleteButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 42, 100,
+      TouchHeight);
+    SearchEdit.SetBounds(Margin, 78, AvailableWidth, 24);
+    ItemWidth := (AvailableWidth - (Gap * 2)) div 3;
+    SortBox.SetBounds(Margin, 112, ItemWidth, 24);
+    ViewBox.SetBounds(SortBox.Left + ItemWidth + Gap, 112, ItemWidth, 24);
+    FilterBox.SetBounds(ViewBox.Left + ItemWidth + Gap, 112, ItemWidth, 24);
+    ItemWidth := (AvailableWidth - Gap) div 2;
+    ClickModeBox.SetBounds(Margin, 146, ItemWidth, 24);
+    FolderGroupBox.SetBounds(ClickModeBox.Left + ItemWidth + Gap, 146,
+      ItemWidth, 24);
+    PathGroupBevel.SetBounds(6, 5, ClientWidth - 12, 34);
+    ActionGroupBevel.SetBounds(6, 37, DeleteButton.Left + DeleteButton.Width + 6,
+      40);
+    ViewGroupBevel.SetBounds(6, 105, ClientWidth - 12, 72);
+  end
+  else
+  begin
+    ToolPanel.Height := 254;
+    FolderEdit.SetBounds(Margin, 10, AvailableWidth, 24);
+    BrowseButton.SetBounds(Margin, 42, 92, TouchHeight);
+    ScanButton.SetBounds(BrowseButton.Left + BrowseButton.Width + Gap, 42, 116,
+      TouchHeight);
+    StopButton.SetBounds(Margin, 76, 118, TouchHeight);
+    DeleteButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 76,
+      Max(90, AvailableWidth - StopButton.Width - Gap), TouchHeight);
+    SearchEdit.SetBounds(Margin, 112, AvailableWidth, 24);
+    ItemWidth := (AvailableWidth - Gap) div 2;
+    SortBox.SetBounds(Margin, 146, ItemWidth, 24);
+    ViewBox.SetBounds(SortBox.Left + ItemWidth + Gap, 146, ItemWidth, 24);
+    FilterBox.SetBounds(Margin, 180, ItemWidth, 24);
+    ClickModeBox.SetBounds(FilterBox.Left + ItemWidth + Gap, 180, ItemWidth,
+      24);
+    FolderGroupBox.SetBounds(Margin, 214, AvailableWidth, 24);
+    PathGroupBevel.SetBounds(6, 5, ClientWidth - 12, 34);
+    ActionGroupBevel.SetBounds(6, 37, ClientWidth - 12, 74);
+    ViewGroupBevel.SetBounds(6, 139, ClientWidth - 12, 106);
   end;
 end;
 
