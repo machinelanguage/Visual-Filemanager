@@ -199,7 +199,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.10';
+  APPLICATION_VERSION = '1.2.11';
 
 {$R *.dfm}
 
@@ -1312,6 +1312,7 @@ var
   Picture: TPicture;
   Bitmap: TBitmap;
   ImageIndex: Integer;
+  CaptionText: string;
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
     Exit;
@@ -1335,31 +1336,35 @@ begin
       Picture.LoadFromFile(CacheFile);
     end;
 
-    { The card is created in memory. Cache files remain ordinary JPEGs. }
+    { Draw a Polaroid-style card in memory. The source cache stays JPEG. }
     Bitmap.SetSize(160, 120);
     Bitmap.Canvas.Brush.Style := bsSolid;
     Bitmap.Canvas.Brush.Color := $00E7EDF2;
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
-    Bitmap.Canvas.Brush.Color := $008C99A3;
-    Bitmap.Canvas.FillRect(Rect(8, 8, 158, 119));
 
-    { White photo frame, warm mat and inset image. }
+    { Offset shadow and the thick white Polaroid border. }
+    Bitmap.Canvas.Brush.Color := $0089959F;
+    Bitmap.Canvas.FillRect(Rect(8, 8, 158, 119));
     Bitmap.Canvas.Brush.Color := clWhite;
-    Bitmap.Canvas.FillRect(Rect(1, 1, 153, 114));
-    Bitmap.Canvas.Pen.Color := $00C4CDD4;
-    Bitmap.Canvas.Rectangle(1, 1, 153, 114);
-    Bitmap.Canvas.Brush.Color := $00F3EFE6;
-    Bitmap.Canvas.FillRect(Rect(5, 5, 149, 110));
-    Bitmap.Canvas.Pen.Color := $00D4CDBF;
-    Bitmap.Canvas.Rectangle(5, 5, 149, 110);
-    Bitmap.Canvas.StretchDraw(Rect(10, 10, 144, 104), Picture.Graphic);
-    Bitmap.Canvas.Pen.Color := $008A8A8A;
+    Bitmap.Canvas.FillRect(Rect(2, 2, 152, 116));
+    Bitmap.Canvas.Pen.Color := $00CCD2D6;
     Bitmap.Canvas.Brush.Style := bsClear;
-    Bitmap.Canvas.Rectangle(9, 9, 145, 105);
+    Bitmap.Canvas.Rectangle(2, 2, 152, 116);
+
+    { The larger lower margin carries the image caption. }
+    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 94), Picture.Graphic);
+    Bitmap.Canvas.Pen.Color := $00939AA0;
+    Bitmap.Canvas.Rectangle(7, 7, 147, 95);
+    CaptionText := Copy(FFiles[AIndex].DisplayName, 1, 23);
+    Bitmap.Canvas.Font.Name := 'Tahoma';
+    Bitmap.Canvas.Font.Size := 7;
+    Bitmap.Canvas.Font.Color := $004A535A;
+    Bitmap.Canvas.Brush.Style := bsClear;
+    Bitmap.Canvas.TextOut(10, 100, CaptionText);
     Bitmap.Canvas.Pen.Color := clWhite;
-    Bitmap.Canvas.MoveTo(2, 2);
-    Bitmap.Canvas.LineTo(151, 2);
-    Bitmap.Canvas.LineTo(151, 112);
+    Bitmap.Canvas.MoveTo(3, 3);
+    Bitmap.Canvas.LineTo(150, 3);
+    Bitmap.Canvas.LineTo(150, 114);
 
     ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
