@@ -91,6 +91,7 @@ type
 
   TFrmVisualFileManager = class(TForm)
     ToolPanel: TPanel;
+    FileAreaPanel: TPanel;
     FolderEdit: TEdit;
     BrowseButton: TButton;
     ScanButton: TButton;
@@ -199,7 +200,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.11';
+  APPLICATION_VERSION = '1.2.12';
 
 {$R *.dfm}
 
