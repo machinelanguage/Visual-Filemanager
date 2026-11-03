@@ -111,7 +111,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       OnChange = ViewChange
       Items.Strings = (
         'Liste'
-        'Kucuk simgeler')
+        'Kucuk resim izgara')
     end
     object FilterBox: TComboBox
       Left = 680
