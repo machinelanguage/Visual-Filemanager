@@ -243,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.46';
+  APPLICATION_VERSION = '1.2.47';
 
 {$R *.dfm}
 
@@ -1445,13 +1445,17 @@ begin
 end;
 
 procedure TFrmVisualFileManager.ReflowThumbnailGrid;
+var
+  ListStyle: Longint;
 begin
   if (ViewBox.ItemIndex <> 1) or not FileList.HandleAllocated then
     Exit;
-  { Recreate icon coordinates only after a layout-affecting change. }
-  FileList.Items.Count := 0;
-  FileList.Items.Count := FVisibleItems.Count;
-  SendMessage(FileList.Handle, LVM_ARRANGE, LVA_ALIGNTOP, 0);
+  { TListView in Delphi 10.2 does not publish AutoArrange/Alignment. Set the
+    native style at runtime without serializing unsupported DFM properties. }
+  ListStyle := GetWindowLong(FileList.Handle, GWL_STYLE);
+  ListStyle := (ListStyle or LVS_AUTOARRANGE) and not LVS_ALIGNBOTTOM;
+  SetWindowLong(FileList.Handle, GWL_STYLE, ListStyle);
+  SendMessage(FileList.Handle, LVM_ARRANGE, LVA_DEFAULT, 0);
   if FVisibleItems.Count > 0 then
     SendMessage(FileList.Handle, LVM_ENSUREVISIBLE, 0, 0);
   FileList.Invalidate;
