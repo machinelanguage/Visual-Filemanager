@@ -233,7 +233,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.36';
+  APPLICATION_VERSION = '1.2.37';
 
 {$R *.dfm}
 
@@ -748,11 +748,11 @@ begin
       Integer(Color)));
     BackgroundColorBox.Selected := SavedBackgroundColor;
     ApplyBackgroundColor(SavedBackgroundColor);
-    SavedFontSize := Ini.ReadInteger('General', 'FileTextSize', 2);
+    SavedFontSize := Ini.ReadInteger('General', 'FileTextSize', 3);
     if (SavedFontSize >= 0) and (SavedFontSize < FontSizeBox.Items.Count) then
       FontSizeBox.ItemIndex := SavedFontSize
     else
-      FontSizeBox.ItemIndex := 2;
+      FontSizeBox.ItemIndex := 3;
     ApplyFileTextSize;
   finally
     Ini.Free;
@@ -1434,7 +1434,7 @@ procedure TFrmVisualFileManager.ApplyFileTextSize;
 begin
   FileList.ParentFont := False;
   FileList.Font.Name := 'Tahoma';
-  FileList.Font.Size := 16 + (FontSizeBox.ItemIndex * 4);
+  FileList.Font.Size := 10 + (FontSizeBox.ItemIndex * 2);
   ApplyThumbnailGridSpacing;
   RefreshThumbnailFrames;
   FileList.Invalidate;
@@ -1793,7 +1793,7 @@ begin
     Bitmap.Canvas.Rectangle(7, 7, 147, ImageBottom + 1);
     CaptionText := ChangeFileExt(FFiles[AIndex].DisplayName, '');
     Bitmap.Canvas.Font.Name := 'Tahoma';
-    Bitmap.Canvas.Font.Size := 7 + (FontSizeBox.ItemIndex * 2);
+    Bitmap.Canvas.Font.Size := 6 + FontSizeBox.ItemIndex;
     Bitmap.Canvas.Font.Color := $004A535A;
     Bitmap.Canvas.Brush.Style := bsClear;
     CaptionArea := Rect(8, CaptionTop, 146, 114);
