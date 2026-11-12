@@ -1095,22 +1095,25 @@ procedure TFrmVisualFileManager.PreparePlaceholderImages;
   var
     Bitmap: TBitmap;
     ImageIndex: Integer;
+    Scale: Double;
   begin
+    Scale := ThumbnailFrameScale;
     Bitmap := TBitmap.Create;
     try
-      Bitmap.SetSize(160, 120);
+      Bitmap.SetSize(ThumbnailFrameWidth, ThumbnailFrameHeight);
       Bitmap.Canvas.Brush.Color := clWhite;
-      Bitmap.Canvas.FillRect(Rect(0, 0, 160, 120));
+      Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
       Bitmap.Canvas.Brush.Color := AColor;
-      Bitmap.Canvas.FillRect(Rect(0, 0, 160, 26));
+      Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Round(26 * Scale)));
       Bitmap.Canvas.Font.Color := AColor;
       Bitmap.Canvas.Font.Style := [fsBold];
-      Bitmap.Canvas.Font.Size := 16;
-      Bitmap.Canvas.TextOut(14, 46, AText);
+      Bitmap.Canvas.Font.Size := Round(16 * Scale);
+      Bitmap.Canvas.TextOut(Round(14 * Scale), Round(46 * Scale), AText);
       Bitmap.Canvas.Font.Style := [];
-      Bitmap.Canvas.Font.Size := 8;
+      Bitmap.Canvas.Font.Size := Round(8 * Scale);
       Bitmap.Canvas.Font.Color := clGray;
-      Bitmap.Canvas.TextOut(14, 82, 'Kucuk resim hazirlaniyor');
+      Bitmap.Canvas.TextOut(Round(14 * Scale), Round(82 * Scale),
+        'Kucuk resim hazirlaniyor');
       ImageIndex := ThumbnailImages.Add(Bitmap, nil);
       ThumbnailStagingImages.Add(Bitmap, nil);
       FPlaceholderIndexes.Add(AKey, ImageIndex);
