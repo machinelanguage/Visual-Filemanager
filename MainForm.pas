@@ -232,7 +232,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.29';
+  APPLICATION_VERSION = '1.2.30';
 
 {$R *.dfm}
 
@@ -1042,6 +1042,7 @@ end;
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
 begin
   Caption := 'Dosya Yoneticisi v' + APPLICATION_VERSION;
+  VersionLabel.Caption := 'Surum ' + APPLICATION_VERSION;
   if FStartupScanDone then
     Exit;
   FStartupScanDone := True;
