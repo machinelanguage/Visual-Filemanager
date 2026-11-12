@@ -313,21 +313,6 @@ object FrmVisualFileManager: TFrmVisualFileManager
         'Uzak'
         'Cok uzak')
     end
-    object FrameSizeBox: TComboBox
-      Left = 462
-      Top = 2
-      Width = 100
-      Height = 24
-      Style = csDropDownList
-      ItemIndex = 0
-      TabOrder = 3
-      Text = 'Cer: normal'
-      OnChange = FrameSizeChange
-      Items.Strings = (
-        'Cer: normal'
-        'Cer: buyuk'
-        'Cer: cok buyuk')
-    end
     object FontSizeBox: TComboBox
       Left = 568
       Top = 2
@@ -335,7 +320,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Height = 24
       Style = csDropDownList
       ItemIndex = 3
-      TabOrder = 4
+      TabOrder = 3
       Text = '16 punto'
       OnChange = FontSizeChange
       Items.Strings = (
@@ -359,7 +344,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Height = 24
       Selected = $00D9E2EA
       Style = [cbStandardColors, cbExtendedColors, cbCustomColor]
-      TabOrder = 5
+      TabOrder = 4
       OnChange = BackgroundColorChange
     end
 
