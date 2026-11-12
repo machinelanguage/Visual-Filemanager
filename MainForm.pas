@@ -769,6 +769,7 @@ begin
       FrameSizeBox.ItemIndex := SavedFrameSize
     else
       FrameSizeBox.ItemIndex := 0;
+    FileList.LargeImages := ActiveThumbnailImages;
   finally
     Ini.Free;
   end;
