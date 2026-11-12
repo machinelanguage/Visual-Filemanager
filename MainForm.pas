@@ -231,7 +231,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.27';
+  APPLICATION_VERSION = '1.2.28';
 
 {$R *.dfm}
 
@@ -1601,9 +1601,11 @@ function TFrmVisualFileManager.ThumbnailFileName(const AFile: TFileEntry): strin
 var
   CacheVersion: string;
 begin
-  CacheVersion := 'image-cache-v1';
+  { New card format: the cache contains visual content only. File captions are
+    drawn by the list from the original source record, never from a .jpg cache. }
+  CacheVersion := 'image-cache-v2';
   if IsVideoFile(AFile) then
-    CacheVersion := 'video-frame-v1';
+    CacheVersion := 'video-frame-v2';
   Result := TPath.Combine(FThumbnailFolder, IntToHex(HashText(AFile.FullName +
     '|' + IntToStr(AFile.Size) + '|' + IntToStr(Trunc(AFile.ModifiedAt * 86400000)) +
     '|' + CacheVersion), 8) + '.jpg');
@@ -1701,7 +1703,6 @@ var
   Picture: TPicture;
   Bitmap: TBitmap;
   ImageIndex: Integer;
-  CaptionText: string;
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
     Exit;
@@ -1740,16 +1741,11 @@ begin
     Bitmap.Canvas.Brush.Style := bsClear;
     Bitmap.Canvas.Rectangle(2, 2, 152, 116);
 
-    { The larger lower margin carries the image caption. }
-    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 94), Picture.Graphic);
+    { The list item prints the complete original source name below the card.
+      Do not bake a shortened filename or a cache .jpg name into the image. }
+    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 108), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $00939AA0;
-    Bitmap.Canvas.Rectangle(7, 7, 147, 95);
-    CaptionText := Copy(FFiles[AIndex].DisplayName, 1, 23);
-    Bitmap.Canvas.Font.Name := 'Tahoma';
-    Bitmap.Canvas.Font.Size := 7;
-    Bitmap.Canvas.Font.Color := $004A535A;
-    Bitmap.Canvas.Brush.Style := bsClear;
-    Bitmap.Canvas.TextOut(10, 100, CaptionText);
+    Bitmap.Canvas.Rectangle(7, 7, 147, 109);
     Bitmap.Canvas.Pen.Color := clWhite;
     Bitmap.Canvas.MoveTo(3, 3);
     Bitmap.Canvas.LineTo(150, 3);
