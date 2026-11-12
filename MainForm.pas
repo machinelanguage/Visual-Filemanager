@@ -232,7 +232,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.30';
+  APPLICATION_VERSION = '1.2.31';
 
 {$R *.dfm}
 
@@ -1603,11 +1603,10 @@ function TFrmVisualFileManager.ThumbnailFileName(const AFile: TFileEntry): strin
 var
   CacheVersion: string;
 begin
-  { New card format: the cache contains visual content only. File captions are
-    drawn by the list from the original source record, never from a .jpg cache. }
-  CacheVersion := 'image-cache-v2';
+  { Card captions use the original source record, never the cache filename. }
+  CacheVersion := 'image-cache-v3';
   if IsVideoFile(AFile) then
-    CacheVersion := 'video-frame-v2';
+    CacheVersion := 'video-frame-v3';
   Result := TPath.Combine(FThumbnailFolder, IntToHex(HashText(AFile.FullName +
     '|' + IntToStr(AFile.Size) + '|' + IntToStr(Trunc(AFile.ModifiedAt * 86400000)) +
     '|' + CacheVersion), 8) + '.jpg');
@@ -1705,6 +1704,7 @@ var
   Picture: TPicture;
   Bitmap: TBitmap;
   ImageIndex: Integer;
+  CaptionText: string;
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
     Exit;
@@ -1743,11 +1743,16 @@ begin
     Bitmap.Canvas.Brush.Style := bsClear;
     Bitmap.Canvas.Rectangle(2, 2, 152, 116);
 
-    { The list item prints the complete original source name below the card.
-      Do not bake a shortened filename or a cache .jpg name into the image. }
-    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 108), Picture.Graphic);
+    { Preserve the familiar Polaroid caption using the original source name. }
+    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 94), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $00939AA0;
-    Bitmap.Canvas.Rectangle(7, 7, 147, 109);
+    Bitmap.Canvas.Rectangle(7, 7, 147, 95);
+    CaptionText := Copy(FFiles[AIndex].DisplayName, 1, 23);
+    Bitmap.Canvas.Font.Name := 'Tahoma';
+    Bitmap.Canvas.Font.Size := 7;
+    Bitmap.Canvas.Font.Color := $004A535A;
+    Bitmap.Canvas.Brush.Style := bsClear;
+    Bitmap.Canvas.TextOut(10, 100, CaptionText);
     Bitmap.Canvas.Pen.Color := clWhite;
     Bitmap.Canvas.MoveTo(3, 3);
     Bitmap.Canvas.LineTo(150, 3);
