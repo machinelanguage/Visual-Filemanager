@@ -107,6 +107,7 @@ type
     AnimationDurationBox: TComboBox;
     AnimationDistanceBox: TComboBox;
     BackgroundColorBox: TColorBox;
+    FontSizeBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -132,6 +133,7 @@ type
     procedure AnimationDurationChange(Sender: TObject);
     procedure AnimationDistanceChange(Sender: TObject);
     procedure BackgroundColorChange(Sender: TObject);
+    procedure FontSizeChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -184,6 +186,7 @@ type
     function ThumbnailAnimationDuration: Integer;
     function ThumbnailAnimationDistance: Integer;
     procedure ApplyBackgroundColor(const AColor: TColor);
+    procedure ApplyFileFontSize;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -228,7 +231,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.26';
+  APPLICATION_VERSION = '1.2.27';
 
 {$R *.dfm}
 
@@ -691,7 +694,7 @@ var
   Ini: TIniFile;
   SavedFolder: string;
   SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation,
-    SavedAnimationDuration, SavedAnimationDistance: Integer;
+    SavedAnimationDuration, SavedAnimationDistance, SavedFontSize: Integer;
   SavedBackgroundColor: TColor;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
@@ -743,6 +746,12 @@ begin
       Integer(Color)));
     BackgroundColorBox.Selected := SavedBackgroundColor;
     ApplyBackgroundColor(SavedBackgroundColor);
+    SavedFontSize := Ini.ReadInteger('General', 'FileFontSize', 0);
+    if (SavedFontSize >= 0) and (SavedFontSize < FontSizeBox.Items.Count) then
+      FontSizeBox.ItemIndex := SavedFontSize
+    else
+      FontSizeBox.ItemIndex := 0;
+    ApplyFileFontSize;
   finally
     Ini.Free;
   end;
@@ -772,6 +781,7 @@ begin
     Ini.WriteInteger('General', 'ThumbnailAnimationDistance',
       AnimationDistanceBox.ItemIndex);
     Ini.WriteInteger('General', 'BackgroundColor', Integer(Color));
+    Ini.WriteInteger('General', 'FileFontSize', FontSizeBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -1379,6 +1389,21 @@ begin
   if (AnimationBox.ItemIndex >= 3) and (ViewBox.ItemIndex = 1) and
     (FThumbnailIndexes.Count > 0) then
     StartThumbnailEffect;
+end;
+
+procedure TFrmVisualFileManager.ApplyFileFontSize;
+begin
+  { Keep the original file captions untouched; only their display size changes. }
+  FileList.ParentFont := False;
+  FileList.Font.Name := 'Tahoma';
+  FileList.Font.Size := 11 + (FontSizeBox.ItemIndex * 2);
+  FileList.Invalidate;
+end;
+
+procedure TFrmVisualFileManager.FontSizeChange(Sender: TObject);
+begin
+  ApplyFileFontSize;
+  SaveSettings;
 end;
 
 procedure TFrmVisualFileManager.SearchChange(Sender: TObject);
