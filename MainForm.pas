@@ -1411,14 +1411,29 @@ begin
     StartThumbnailEffect;
 end;
 
+function TFrmVisualFileManager.ThumbnailFrameWidth: Integer;
+begin
+  Result := 160 + (FrameSizeBox.ItemIndex * 40);
+end;
+
+function TFrmVisualFileManager.ThumbnailFrameHeight: Integer;
+begin
+  Result := 120 + (FrameSizeBox.ItemIndex * 30);
+end;
+
+function TFrmVisualFileManager.ThumbnailFrameScale: Double;
+begin
+  Result := ThumbnailFrameWidth / 160.0;
+end;
+
 procedure TFrmVisualFileManager.ApplyThumbnailGridSpacing;
 var
   SpacingX, SpacingY: Integer;
 begin
-  { A larger label needs a larger icon cell.  This keeps virtual-list
-    thumbnail captions from touching the next row or column. }
-  SpacingX := Max(190, 160 + (FileList.Font.Size * 3));
-  SpacingY := Max(155, 120 + (FileList.Font.Size * 4));
+  SpacingX := Max(ThumbnailFrameWidth + 30,
+    ThumbnailFrameWidth + (FileList.Font.Size * 3));
+  SpacingY := Max(ThumbnailFrameHeight + 35,
+    ThumbnailFrameHeight + (FileList.Font.Size * 4));
   if FileList.HandleAllocated then
   begin
     SendMessage(FileList.Handle, LVM_SETICONSPACING, 0,
@@ -1440,11 +1455,36 @@ begin
   FThumbnailQueuePosition := 0;
   ThumbnailImages.Clear;
   ThumbnailStagingImages.Clear;
+  FPlaceholderIndexes.Clear;
+  PreparePlaceholderImages;
   VisibleIndex := 0;
   if Assigned(FileList.TopItem) then
     VisibleIndex := FileList.TopItem.Index;
   QueueThumbnailPage(VisibleIndex);
   FileList.Invalidate;
+end;
+
+procedure TFrmVisualFileManager.ApplyThumbnailFrameSize;
+begin
+  if (ThumbnailImages.Width = ThumbnailFrameWidth) and
+    (ThumbnailImages.Height = ThumbnailFrameHeight) then
+    Exit;
+  ThumbnailImages.Clear;
+  ThumbnailStagingImages.Clear;
+  ThumbnailImages.Width := ThumbnailFrameWidth;
+  ThumbnailImages.Height := ThumbnailFrameHeight;
+  ThumbnailStagingImages.Width := ThumbnailFrameWidth;
+  ThumbnailStagingImages.Height := ThumbnailFrameHeight;
+  FPlaceholderIndexes.Clear;
+  PreparePlaceholderImages;
+  ApplyThumbnailGridSpacing;
+  RefreshThumbnailFrames;
+end;
+
+procedure TFrmVisualFileManager.FrameSizeChange(Sender: TObject);
+begin
+  ApplyThumbnailFrameSize;
+  SaveSettings;
 end;
 
 procedure TFrmVisualFileManager.ApplyFileTextSize;
