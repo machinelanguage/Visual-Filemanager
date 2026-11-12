@@ -201,8 +201,6 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Width = 1174
       Height = 650
       Align = alClient
-      Alignment = taTop
-      AutoArrange = True
       Columns = <
         item
           Caption = 'Dosya adi'
