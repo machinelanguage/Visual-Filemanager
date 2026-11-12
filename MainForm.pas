@@ -108,7 +108,6 @@ type
     AnimationDistanceBox: TComboBox;
     BackgroundColorBox: TColorBox;
     FontSizeBox: TComboBox;
-    FrameSizeBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -135,7 +134,6 @@ type
     procedure AnimationDistanceChange(Sender: TObject);
     procedure BackgroundColorChange(Sender: TObject);
     procedure FontSizeChange(Sender: TObject);
-    procedure FrameSizeChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -191,11 +189,6 @@ type
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure RefreshThumbnailFrames;
-    procedure ResetThumbnailImageLists(const AResize: Boolean = False);
-    procedure ApplyThumbnailFrameSize;
-    function ThumbnailFrameWidth: Integer;
-    function ThumbnailFrameHeight: Integer;
-    function ThumbnailFrameScale: Double;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -240,7 +233,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.39';
+  APPLICATION_VERSION = '1.2.40';
 
 {$R *.dfm}
 
@@ -703,8 +696,7 @@ var
   Ini: TIniFile;
   SavedFolder: string;
   SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation,
-    SavedAnimationDuration, SavedAnimationDistance, SavedFontSize,
-      SavedFrameSize: Integer;
+    SavedAnimationDuration, SavedAnimationDistance, SavedFontSize: Integer;
   SavedBackgroundColor: TColor;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
@@ -762,12 +754,6 @@ begin
     else
       FontSizeBox.ItemIndex := 3;
     ApplyFileTextSize;
-    SavedFrameSize := Ini.ReadInteger('General', 'ThumbnailFrameSize', 0);
-    if (SavedFrameSize >= 0) and (SavedFrameSize < FrameSizeBox.Items.Count) then
-      FrameSizeBox.ItemIndex := SavedFrameSize
-    else
-      FrameSizeBox.ItemIndex := 0;
-    ApplyThumbnailFrameSize;
   finally
     Ini.Free;
   end;
@@ -798,7 +784,6 @@ begin
       AnimationDistanceBox.ItemIndex);
     Ini.WriteInteger('General', 'BackgroundColor', Integer(Color));
     Ini.WriteInteger('General', 'FileTextSize', FontSizeBox.ItemIndex);
-    Ini.WriteInteger('General', 'ThumbnailFrameSize', FrameSizeBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -1052,16 +1037,13 @@ begin
     90, 24);
   BackgroundColorBox.SetBounds(Max(16, AnimationDistanceBox.Left - 106), 2,
     100, 24);
-  FontSizeBox.SetBounds(Max(16, BackgroundColorBox.Left - 106), 2, 100, 24);
-  FrameSizeBox.SetBounds(Max(16, FontSizeBox.Left - 106), 2, 100, 24);
-  StatusLabel.Width := Max(1, FrameSizeBox.Left - 24);
+  StatusLabel.Width := Max(1, BackgroundColorBox.Left - 24);
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
 begin
   Caption := 'Dosya Yoneticisi v' + APPLICATION_VERSION;
   ApplyFileTextSize;
-  ApplyThumbnailFrameSize;
   if FStartupScanDone then
     Exit;
   FStartupScanDone := True;
@@ -1096,25 +1078,22 @@ procedure TFrmVisualFileManager.PreparePlaceholderImages;
   var
     Bitmap: TBitmap;
     ImageIndex: Integer;
-    Scale: Double;
   begin
-    Scale := ThumbnailFrameScale;
     Bitmap := TBitmap.Create;
     try
-      Bitmap.SetSize(ThumbnailFrameWidth, ThumbnailFrameHeight);
+      Bitmap.SetSize(160, 120);
       Bitmap.Canvas.Brush.Color := clWhite;
-      Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
+      Bitmap.Canvas.FillRect(Rect(0, 0, 160, 120));
       Bitmap.Canvas.Brush.Color := AColor;
-      Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Round(26 * Scale)));
+      Bitmap.Canvas.FillRect(Rect(0, 0, 160, 26));
       Bitmap.Canvas.Font.Color := AColor;
       Bitmap.Canvas.Font.Style := [fsBold];
-      Bitmap.Canvas.Font.Size := Round(16 * Scale);
-      Bitmap.Canvas.TextOut(Round(14 * Scale), Round(46 * Scale), AText);
+      Bitmap.Canvas.Font.Size := 16;
+      Bitmap.Canvas.TextOut(14, 46, AText);
       Bitmap.Canvas.Font.Style := [];
-      Bitmap.Canvas.Font.Size := Round(8 * Scale);
+      Bitmap.Canvas.Font.Size := 8;
       Bitmap.Canvas.Font.Color := clGray;
-      Bitmap.Canvas.TextOut(Round(14 * Scale), Round(82 * Scale),
-        'Kucuk resim hazirlaniyor');
+      Bitmap.Canvas.TextOut(14, 82, 'Kucuk resim hazirlaniyor');
       ImageIndex := ThumbnailImages.Add(Bitmap, nil);
       ThumbnailStagingImages.Add(Bitmap, nil);
       FPlaceholderIndexes.Add(AKey, ImageIndex);
@@ -1215,7 +1194,9 @@ begin
   FQueuedThumbnailFiles.Clear;
   FPlaceholderIndexes.Clear;
   FKnownFiles.Clear;
-  ResetThumbnailImageLists;
+  ThumbnailImages.Clear;
+  ThumbnailStagingImages.Clear;
+  PreparePlaceholderImages;
   FThumbnailImagesDirty := False;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
@@ -1413,59 +1394,20 @@ begin
     StartThumbnailEffect;
 end;
 
-function TFrmVisualFileManager.ThumbnailFrameWidth: Integer;
-begin
-  Result := 160 + (FrameSizeBox.ItemIndex * 40);
-end;
-
-function TFrmVisualFileManager.ThumbnailFrameHeight: Integer;
-begin
-  Result := 120 + (FrameSizeBox.ItemIndex * 30);
-end;
-
-function TFrmVisualFileManager.ThumbnailFrameScale: Double;
-begin
-  Result := ThumbnailFrameWidth / 160.0;
-end;
-
 procedure TFrmVisualFileManager.ApplyThumbnailGridSpacing;
 var
   SpacingX, SpacingY: Integer;
 begin
-  SpacingX := Max(ThumbnailFrameWidth + 30,
-    ThumbnailFrameWidth + (FileList.Font.Size * 3));
-  SpacingY := Max(ThumbnailFrameHeight + 35,
-    ThumbnailFrameHeight + (FileList.Font.Size * 4));
+  { A larger label needs a larger icon cell.  This keeps virtual-list
+    thumbnail captions from touching the next row or column. }
+  SpacingX := Max(190, 160 + (FileList.Font.Size * 3));
+  SpacingY := Max(155, 120 + (FileList.Font.Size * 4));
   if FileList.HandleAllocated then
   begin
     SendMessage(FileList.Handle, LVM_SETICONSPACING, 0,
       NativeInt((SpacingX and $FFFF) or ((SpacingY and $FFFF) shl 16)));
     if FileList.ViewStyle = vsIcon then
       FileList.Arrange(arDefault);
-  end;
-end;
-
-procedure TFrmVisualFileManager.ResetThumbnailImageLists(
-  const AResize: Boolean);
-begin
-  { The native list-view must not hold an image list while it is cleared or
-    resized. Otherwise comctl32 can raise "Failed to write image list". }
-  ThumbnailTimer.Enabled := False;
-  FileList.LargeImages := nil;
-  try
-    ThumbnailImages.Clear;
-    ThumbnailStagingImages.Clear;
-    if AResize then
-    begin
-      ThumbnailImages.Width := ThumbnailFrameWidth;
-      ThumbnailImages.Height := ThumbnailFrameHeight;
-      ThumbnailStagingImages.Width := ThumbnailFrameWidth;
-      ThumbnailStagingImages.Height := ThumbnailFrameHeight;
-    end;
-    FPlaceholderIndexes.Clear;
-    PreparePlaceholderImages;
-  finally
-    FileList.LargeImages := ThumbnailImages;
   end;
 end;
 
@@ -1479,28 +1421,13 @@ begin
   FQueuedThumbnailFiles.Clear;
   FThumbnailQueue.Clear;
   FThumbnailQueuePosition := 0;
-  ResetThumbnailImageLists;
+  ThumbnailImages.Clear;
+  ThumbnailStagingImages.Clear;
   VisibleIndex := 0;
   if Assigned(FileList.TopItem) then
     VisibleIndex := FileList.TopItem.Index;
   QueueThumbnailPage(VisibleIndex);
   FileList.Invalidate;
-end;
-
-procedure TFrmVisualFileManager.ApplyThumbnailFrameSize;
-begin
-  if (ThumbnailImages.Width = ThumbnailFrameWidth) and
-    (ThumbnailImages.Height = ThumbnailFrameHeight) then
-    Exit;
-  ResetThumbnailImageLists(True);
-  ApplyThumbnailGridSpacing;
-  RefreshThumbnailFrames;
-end;
-
-procedure TFrmVisualFileManager.FrameSizeChange(Sender: TObject);
-begin
-  ApplyThumbnailFrameSize;
-  SaveSettings;
 end;
 
 procedure TFrmVisualFileManager.ApplyFileTextSize;
@@ -1819,7 +1746,6 @@ var
   ImageIndex, CaptionTop, ImageBottom: Integer;
   CaptionText: string;
   CaptionArea: TRect;
-  FrameScale: Double;
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
     Exit;
@@ -1843,49 +1769,40 @@ begin
       Picture.LoadFromFile(CacheFile);
     end;
 
-    { Build the card at the selected frame size; its 4:3 proportions remain
-      unchanged and the source picture grows proportionally with the frame. }
-    FrameScale := ThumbnailFrameScale;
-    Bitmap.SetSize(ThumbnailFrameWidth, ThumbnailFrameHeight);
+    { Draw a Polaroid-style card in memory. The source cache stays JPEG. }
+    Bitmap.SetSize(160, 120);
     Bitmap.Canvas.Brush.Style := bsSolid;
     Bitmap.Canvas.Brush.Color := $00E7EDF2;
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
 
+    { Offset shadow and the thick white Polaroid border. }
     Bitmap.Canvas.Brush.Color := $0089959F;
-    Bitmap.Canvas.FillRect(Rect(Round(8 * FrameScale), Round(8 * FrameScale),
-      Bitmap.Width - Round(2 * FrameScale), Bitmap.Height - Round(FrameScale)));
+    Bitmap.Canvas.FillRect(Rect(8, 8, 158, 119));
     Bitmap.Canvas.Brush.Color := clWhite;
-    Bitmap.Canvas.FillRect(Rect(Round(2 * FrameScale), Round(2 * FrameScale),
-      Bitmap.Width - Round(8 * FrameScale), Bitmap.Height - Round(4 * FrameScale)));
+    Bitmap.Canvas.FillRect(Rect(2, 2, 152, 116));
     Bitmap.Canvas.Pen.Color := $00CCD2D6;
     Bitmap.Canvas.Brush.Style := bsClear;
-    Bitmap.Canvas.Rectangle(Round(2 * FrameScale), Round(2 * FrameScale),
-      Bitmap.Width - Round(8 * FrameScale), Bitmap.Height - Round(4 * FrameScale));
+    Bitmap.Canvas.Rectangle(2, 2, 152, 116);
 
     { The only visible filename is inside the Polaroid frame.  More selected
       text size reserves more room here and shrinks the image area slightly. }
-    CaptionTop := Round((96 - (FontSizeBox.ItemIndex * 4)) * FrameScale);
-    ImageBottom := CaptionTop - Round(4 * FrameScale);
-    Bitmap.Canvas.StretchDraw(Rect(Round(8 * FrameScale), Round(8 * FrameScale),
-      Bitmap.Width - Round(14 * FrameScale), ImageBottom), Picture.Graphic);
+    CaptionTop := 96 - (FontSizeBox.ItemIndex * 4);
+    ImageBottom := CaptionTop - 4;
+    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, ImageBottom), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $00939AA0;
-    Bitmap.Canvas.Rectangle(Round(7 * FrameScale), Round(7 * FrameScale),
-      Bitmap.Width - Round(13 * FrameScale), ImageBottom + Round(FrameScale));
+    Bitmap.Canvas.Rectangle(7, 7, 147, ImageBottom + 1);
     CaptionText := ChangeFileExt(FFiles[AIndex].DisplayName, '');
     Bitmap.Canvas.Font.Name := 'Tahoma';
-    Bitmap.Canvas.Font.Size := Round((6 + FontSizeBox.ItemIndex) * FrameScale);
+    Bitmap.Canvas.Font.Size := 6 + FontSizeBox.ItemIndex;
     Bitmap.Canvas.Font.Color := $004A535A;
     Bitmap.Canvas.Brush.Style := bsClear;
-    CaptionArea := Rect(Round(8 * FrameScale), CaptionTop,
-      Bitmap.Width - Round(14 * FrameScale), Bitmap.Height - Round(6 * FrameScale));
+    CaptionArea := Rect(8, CaptionTop, 146, 114);
     DrawText(Bitmap.Canvas.Handle, PChar(CaptionText), Length(CaptionText),
       CaptionArea, DT_CENTER or DT_WORDBREAK or DT_END_ELLIPSIS);
     Bitmap.Canvas.Pen.Color := clWhite;
-    Bitmap.Canvas.MoveTo(Round(3 * FrameScale), Round(3 * FrameScale));
-    Bitmap.Canvas.LineTo(Bitmap.Width - Round(10 * FrameScale),
-      Round(3 * FrameScale));
-    Bitmap.Canvas.LineTo(Bitmap.Width - Round(10 * FrameScale),
-      Bitmap.Height - Round(6 * FrameScale));
+    Bitmap.Canvas.MoveTo(3, 3);
+    Bitmap.Canvas.LineTo(150, 3);
+    Bitmap.Canvas.LineTo(150, 114);
 
     ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
