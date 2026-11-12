@@ -228,7 +228,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.25';
+  APPLICATION_VERSION = '1.2.26';
 
 {$R *.dfm}
 
