@@ -195,7 +195,6 @@ type
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure RefreshThumbnailFrames;
-    procedure FrameSizeChange(Sender: TObject);
     function ActiveThumbnailImages: TImageList;
     function ActiveThumbnailStagingImages: TImageList;
     function ThumbnailFrameScale: Double;
@@ -824,8 +823,8 @@ begin
     SendMessage(FileList.Handle, WM_SETREDRAW, 0, 0);
   try
     FileList.LargeImages := nil;
-    ThumbnailImages.Assign(ThumbnailStagingImages);
-    FileList.LargeImages := ThumbnailImages;
+    ActiveThumbnailImages.Assign(ActiveThumbnailStagingImages);
+    FileList.LargeImages := ActiveThumbnailImages;
     { OwnerData lists cache item images. Resetting the virtual item count makes
       OnData run now, instead of waiting for the final Render call. }
     FileList.Items.Count := FVisibleItems.Count;
@@ -1113,8 +1112,8 @@ procedure TFrmVisualFileManager.PreparePlaceholderImages;
       Bitmap.Canvas.Font.Size := 8;
       Bitmap.Canvas.Font.Color := clGray;
       Bitmap.Canvas.TextOut(14, 82, 'Kucuk resim hazirlaniyor');
-      ImageIndex := ThumbnailImages.Add(Bitmap, nil);
-      ThumbnailStagingImages.Add(Bitmap, nil);
+      ImageIndex := ActiveThumbnailImages.Add(Bitmap, nil);
+      ActiveThumbnailStagingImages.Add(Bitmap, nil);
       FPlaceholderIndexes.Add(AKey, ImageIndex);
     finally
       Bitmap.Free;
@@ -1213,8 +1212,8 @@ begin
   FQueuedThumbnailFiles.Clear;
   FPlaceholderIndexes.Clear;
   FKnownFiles.Clear;
-  ThumbnailImages.Clear;
-  ThumbnailStagingImages.Clear;
+  ActiveThumbnailImages.Clear;
+  ActiveThumbnailStagingImages.Clear;
   PreparePlaceholderImages;
   FThumbnailImagesDirty := False;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
@@ -1413,14 +1412,41 @@ begin
     StartThumbnailEffect;
 end;
 
+function TFrmVisualFileManager.ActiveThumbnailImages: TImageList;
+begin
+  case FrameSizeBox.ItemIndex of
+    1: Result := ThumbnailImagesLarge;
+    2: Result := ThumbnailImagesXLarge;
+  else
+    Result := ThumbnailImages;
+  end;
+end;
+
+function TFrmVisualFileManager.ActiveThumbnailStagingImages: TImageList;
+begin
+  case FrameSizeBox.ItemIndex of
+    1: Result := ThumbnailStagingImagesLarge;
+    2: Result := ThumbnailStagingImagesXLarge;
+  else
+    Result := ThumbnailStagingImages;
+  end;
+end;
+
+function TFrmVisualFileManager.ThumbnailFrameScale: Double;
+begin
+  Result := ActiveThumbnailImages.Width / 160.0;
+end;
+
 procedure TFrmVisualFileManager.ApplyThumbnailGridSpacing;
 var
   SpacingX, SpacingY: Integer;
 begin
   { A larger label needs a larger icon cell.  This keeps virtual-list
     thumbnail captions from touching the next row or column. }
-  SpacingX := Max(190, 160 + (FileList.Font.Size * 3));
-  SpacingY := Max(155, 120 + (FileList.Font.Size * 4));
+  SpacingX := Max(ActiveThumbnailImages.Width + 30,
+    ActiveThumbnailImages.Width + (FileList.Font.Size * 3));
+  SpacingY := Max(ActiveThumbnailImages.Height + 35,
+    ActiveThumbnailImages.Height + (FileList.Font.Size * 4));
   if FileList.HandleAllocated then
   begin
     SendMessage(FileList.Handle, LVM_SETICONSPACING, 0,
@@ -1440,8 +1466,8 @@ begin
   FQueuedThumbnailFiles.Clear;
   FThumbnailQueue.Clear;
   FThumbnailQueuePosition := 0;
-  ThumbnailImages.Clear;
-  ThumbnailStagingImages.Clear;
+  ActiveThumbnailImages.Clear;
+  ActiveThumbnailStagingImages.Clear;
   VisibleIndex := 0;
   if Assigned(FileList.TopItem) then
     VisibleIndex := FileList.TopItem.Index;
@@ -1823,7 +1849,7 @@ begin
     Bitmap.Canvas.LineTo(150, 3);
     Bitmap.Canvas.LineTo(150, 114);
 
-    ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
+    ImageIndex := ActiveThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
     FThumbnailImagesDirty := True;
   except
@@ -2017,7 +2043,7 @@ begin
   Item.SubItems.Add(FileEntry.FolderName);
   Item.SubItems.Add(FileEntry.FullName);
   if FThumbnailIndexes.TryGetValue(FileEntry.FullName, ImageIndex) and
-    (ImageIndex < ThumbnailImages.Count) then
+    (ImageIndex < ActiveThumbnailImages.Count) then
     Item.ImageIndex := ImageIndex
   else
     Item.ImageIndex := PlaceholderImageIndex(FileEntry);
