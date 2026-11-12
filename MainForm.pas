@@ -242,7 +242,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.42';
+  APPLICATION_VERSION = '1.2.43';
 
 {$R *.dfm}
 
@@ -817,25 +817,10 @@ end;
 
 procedure TFrmVisualFileManager.PublishThumbnails;
 begin
-  if not FThumbnailImagesDirty then
-    Exit;
-
-  { Do not assign one TImageList to another here. TImageList.Assign uses VCL
-    streaming internally and can raise "Failed to write image list data to
-    stream" after repeated updates. Images are added directly to the active
-    designer-owned list by the UI timer. }
-  if FileList.HandleAllocated then
-    SendMessage(FileList.Handle, WM_SETREDRAW, 0, 0);
-  try
-    FileList.Items.Count := FVisibleItems.Count;
-    FThumbnailImagesDirty := False;
-  finally
-    if FileList.HandleAllocated then
-    begin
-      SendMessage(FileList.Handle, WM_SETREDRAW, 1, 0);
-      FileList.Invalidate;
-    end;
-  end;
+  { Each image is already inserted into the active list. Do not reset the
+    OwnerData item count or invalidate the whole list here: either action
+    repaints every card and causes visible thumbnail flicker. }
+  FThumbnailImagesDirty := False;
 end;
 
 procedure TFrmVisualFileManager.TryStartThumbnailPageAnimation;
@@ -1892,9 +1877,13 @@ end;
 
 procedure TFrmVisualFileManager.RedrawThumbnailItem(
   const AFileIndex: Integer);
+var
+  VisibleIndex: Integer;
 begin
-  { Image is held in the staging list.  The visible image list is replaced
-    once after the queue completes, so no per-item redraw is needed. }
+  { Repaint only the cell whose active image was just added. }
+  VisibleIndex := FVisibleItems.IndexOf(AFileIndex);
+  if (VisibleIndex >= 0) and FileList.HandleAllocated then
+    SendMessage(FileList.Handle, LVM_REDRAWITEMS, VisibleIndex, VisibleIndex);
 end;
 
 procedure TFrmVisualFileManager.ThumbnailTimerTick(Sender: TObject);
