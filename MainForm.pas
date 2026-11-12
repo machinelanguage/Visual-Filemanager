@@ -1806,6 +1806,7 @@ var
   ImageIndex, CaptionTop, ImageBottom: Integer;
   CaptionText: string;
   CaptionArea: TRect;
+  FrameScale: Double;
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
     Exit;
@@ -1829,40 +1830,49 @@ begin
       Picture.LoadFromFile(CacheFile);
     end;
 
-    { Draw a Polaroid-style card in memory. The source cache stays JPEG. }
-    Bitmap.SetSize(160, 120);
+    { Build the card at the selected frame size; its 4:3 proportions remain
+      unchanged and the source picture grows proportionally with the frame. }
+    FrameScale := ThumbnailFrameScale;
+    Bitmap.SetSize(ThumbnailFrameWidth, ThumbnailFrameHeight);
     Bitmap.Canvas.Brush.Style := bsSolid;
     Bitmap.Canvas.Brush.Color := $00E7EDF2;
     Bitmap.Canvas.FillRect(Rect(0, 0, Bitmap.Width, Bitmap.Height));
 
-    { Offset shadow and the thick white Polaroid border. }
     Bitmap.Canvas.Brush.Color := $0089959F;
-    Bitmap.Canvas.FillRect(Rect(8, 8, 158, 119));
+    Bitmap.Canvas.FillRect(Rect(Round(8 * FrameScale), Round(8 * FrameScale),
+      Bitmap.Width - Round(2 * FrameScale), Bitmap.Height - Round(FrameScale)));
     Bitmap.Canvas.Brush.Color := clWhite;
-    Bitmap.Canvas.FillRect(Rect(2, 2, 152, 116));
+    Bitmap.Canvas.FillRect(Rect(Round(2 * FrameScale), Round(2 * FrameScale),
+      Bitmap.Width - Round(8 * FrameScale), Bitmap.Height - Round(4 * FrameScale)));
     Bitmap.Canvas.Pen.Color := $00CCD2D6;
     Bitmap.Canvas.Brush.Style := bsClear;
-    Bitmap.Canvas.Rectangle(2, 2, 152, 116);
+    Bitmap.Canvas.Rectangle(Round(2 * FrameScale), Round(2 * FrameScale),
+      Bitmap.Width - Round(8 * FrameScale), Bitmap.Height - Round(4 * FrameScale));
 
     { The only visible filename is inside the Polaroid frame.  More selected
       text size reserves more room here and shrinks the image area slightly. }
-    CaptionTop := 96 - (FontSizeBox.ItemIndex * 4);
-    ImageBottom := CaptionTop - 4;
-    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, ImageBottom), Picture.Graphic);
+    CaptionTop := Round((96 - (FontSizeBox.ItemIndex * 4)) * FrameScale);
+    ImageBottom := CaptionTop - Round(4 * FrameScale);
+    Bitmap.Canvas.StretchDraw(Rect(Round(8 * FrameScale), Round(8 * FrameScale),
+      Bitmap.Width - Round(14 * FrameScale), ImageBottom), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $00939AA0;
-    Bitmap.Canvas.Rectangle(7, 7, 147, ImageBottom + 1);
+    Bitmap.Canvas.Rectangle(Round(7 * FrameScale), Round(7 * FrameScale),
+      Bitmap.Width - Round(13 * FrameScale), ImageBottom + Round(FrameScale));
     CaptionText := ChangeFileExt(FFiles[AIndex].DisplayName, '');
     Bitmap.Canvas.Font.Name := 'Tahoma';
-    Bitmap.Canvas.Font.Size := 6 + FontSizeBox.ItemIndex;
+    Bitmap.Canvas.Font.Size := Round((6 + FontSizeBox.ItemIndex) * FrameScale);
     Bitmap.Canvas.Font.Color := $004A535A;
     Bitmap.Canvas.Brush.Style := bsClear;
-    CaptionArea := Rect(8, CaptionTop, 146, 114);
+    CaptionArea := Rect(Round(8 * FrameScale), CaptionTop,
+      Bitmap.Width - Round(14 * FrameScale), Bitmap.Height - Round(6 * FrameScale));
     DrawText(Bitmap.Canvas.Handle, PChar(CaptionText), Length(CaptionText),
       CaptionArea, DT_CENTER or DT_WORDBREAK or DT_END_ELLIPSIS);
     Bitmap.Canvas.Pen.Color := clWhite;
-    Bitmap.Canvas.MoveTo(3, 3);
-    Bitmap.Canvas.LineTo(150, 3);
-    Bitmap.Canvas.LineTo(150, 114);
+    Bitmap.Canvas.MoveTo(Round(3 * FrameScale), Round(3 * FrameScale));
+    Bitmap.Canvas.LineTo(Bitmap.Width - Round(10 * FrameScale),
+      Round(3 * FrameScale));
+    Bitmap.Canvas.LineTo(Bitmap.Width - Round(10 * FrameScale),
+      Bitmap.Height - Round(6 * FrameScale));
 
     ImageIndex := ThumbnailStagingImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
