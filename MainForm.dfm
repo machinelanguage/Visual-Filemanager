@@ -53,17 +53,6 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Shape = bsBox
       Style = bsRaised
     end
-    object VersionLabel: TLabel
-      Left = 972
-      Top = 18
-      Width = 184
-      Height = 16
-      Alignment = taRightJustify
-      Caption = 'Surum 1.2.29'
-      Font.Color = $00435463
-      Font.Style = [fsBold]
-      ParentFont = False
-    end
     object FolderEdit: TEdit
       Left = 16
       Top = 14
@@ -268,10 +257,20 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Color = $00E6EDF3
     ParentBackground = False
     TabOrder = 2
-    object StatusLabel: TLabel
+    object VersionLabel: TLabel
       Left = 12
       Top = 7
-      Width = 1000
+      Width = 116
+      Height = 16
+      Caption = 'Surum 1.2.30'
+      Font.Color = $00435463
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
+    object StatusLabel: TLabel
+      Left = 140
+      Top = 7
+      Width = 530
       Height = 13
       Caption = 'Medya veya PDF klasoru secin.'
       Font.Color = $00435463
