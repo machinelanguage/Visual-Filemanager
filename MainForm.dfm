@@ -262,7 +262,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Top = 7
       Width = 116
       Height = 16
-      Caption = 'Surum 1.2.31'
+      Caption = 'Surum 1.2.32'
       Font.Color = $00435463
       Font.Style = [fsBold]
       ParentFont = False
