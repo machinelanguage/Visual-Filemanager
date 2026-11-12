@@ -321,14 +321,14 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Style = csDropDownList
       ItemIndex = 2
       TabOrder = 3
-      Text = '16 punto'
+      Text = '24 punto'
       OnChange = FontSizeChange
       Items.Strings = (
-        '12 punto'
-        '14 punto'
         '16 punto'
-        '18 punto'
-        '20 punto')
+        '20 punto'
+        '24 punto'
+        '28 punto'
+        '32 punto')
     end
     object BackgroundColorBox: TColorBox
       Left = 676
