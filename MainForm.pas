@@ -242,7 +242,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.41';
+  APPLICATION_VERSION = '1.2.42';
 
 {$R *.dfm}
 
@@ -820,14 +820,13 @@ begin
   if not FThumbnailImagesDirty then
     Exit;
 
+  { Do not assign one TImageList to another here. TImageList.Assign uses VCL
+    streaming internally and can raise "Failed to write image list data to
+    stream" after repeated updates. Images are added directly to the active
+    designer-owned list by the UI timer. }
   if FileList.HandleAllocated then
     SendMessage(FileList.Handle, WM_SETREDRAW, 0, 0);
   try
-    FileList.LargeImages := nil;
-    ActiveThumbnailImages.Assign(ActiveThumbnailStagingImages);
-    FileList.LargeImages := ActiveThumbnailImages;
-    { OwnerData lists cache item images. Resetting the virtual item count makes
-      OnData run now, instead of waiting for the final Render call. }
     FileList.Items.Count := FVisibleItems.Count;
     FThumbnailImagesDirty := False;
   finally
@@ -1117,7 +1116,6 @@ procedure TFrmVisualFileManager.PreparePlaceholderImages;
       Bitmap.Canvas.TextOut(Round(14 * Scale), Round(82 * Scale),
         'Kucuk resim hazirlaniyor');
       ImageIndex := ActiveThumbnailImages.Add(Bitmap, nil);
-      ActiveThumbnailStagingImages.Add(Bitmap, nil);
       FPlaceholderIndexes.Add(AKey, ImageIndex);
     finally
       Bitmap.Free;
@@ -1882,7 +1880,7 @@ begin
     Bitmap.Canvas.LineTo(Bitmap.Width - Round(10 * FrameScale),
       Bitmap.Height - Round(6 * FrameScale));
 
-    ImageIndex := ActiveThumbnailStagingImages.Add(Bitmap, nil);
+    ImageIndex := ActiveThumbnailImages.Add(Bitmap, nil);
     FThumbnailIndexes.Add(FFiles[AIndex].FullName, ImageIndex);
     FThumbnailImagesDirty := True;
   except
