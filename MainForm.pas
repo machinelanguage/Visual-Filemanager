@@ -194,6 +194,7 @@ type
     procedure ApplyBackgroundColor(const AColor: TColor);
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
+    procedure ReflowThumbnailGrid;
     procedure RefreshThumbnailFrames;
     function ActiveThumbnailImages: TImageList;
     function ActiveThumbnailStagingImages: TImageList;
@@ -242,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.43';
+  APPLICATION_VERSION = '1.2.44';
 
 {$R *.dfm}
 
@@ -1443,6 +1444,18 @@ begin
   end;
 end;
 
+procedure TFrmVisualFileManager.ReflowThumbnailGrid;
+begin
+  if (ViewBox.ItemIndex <> 1) or not FileList.HandleAllocated then
+    Exit;
+  { Recreate icon coordinates only after a layout-affecting change. }
+  FileList.Items.Count := 0;
+  FileList.Items.Count := FVisibleItems.Count;
+  FileList.Arrange(arDefault);
+  SendMessage(FileList.Handle, LVM_SCROLL, 0, -32767);
+  FileList.Invalidate;
+end;
+
 procedure TFrmVisualFileManager.RefreshThumbnailFrames;
 var
   VisibleIndex: Integer;
@@ -1487,6 +1500,7 @@ begin
   PreparePlaceholderImages;
   FileList.LargeImages := ActiveThumbnailImages;
   ApplyThumbnailGridSpacing;
+  ReflowThumbnailGrid;
   RefreshThumbnailFrames;
   SaveSettings;
 end;
@@ -1528,6 +1542,7 @@ begin
   begin
     FileList.ViewStyle := vsIcon;
     ApplyThumbnailGridSpacing;
+    ReflowThumbnailGrid;
     QueueThumbnailPage(0);
   end
   else
