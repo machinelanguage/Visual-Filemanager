@@ -191,6 +191,7 @@ type
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure RefreshThumbnailFrames;
+    procedure ResetThumbnailImageLists(const AResize: Boolean = False);
     procedure ApplyThumbnailFrameSize;
     function ThumbnailFrameWidth: Integer;
     function ThumbnailFrameHeight: Integer;
@@ -239,7 +240,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.38';
+  APPLICATION_VERSION = '1.2.39';
 
 {$R *.dfm}
 
@@ -1214,9 +1215,7 @@ begin
   FQueuedThumbnailFiles.Clear;
   FPlaceholderIndexes.Clear;
   FKnownFiles.Clear;
-  ThumbnailImages.Clear;
-  ThumbnailStagingImages.Clear;
-  PreparePlaceholderImages;
+  ResetThumbnailImageLists;
   FThumbnailImagesDirty := False;
   StatusLabel.Caption := 'Dosyalar arka planda taraniyor...';
   FScanWorker := TFileScanWorker.Create(FRootFolder, FThumbnailFolder,
@@ -1446,6 +1445,30 @@ begin
   end;
 end;
 
+procedure TFrmVisualFileManager.ResetThumbnailImageLists(
+  const AResize: Boolean);
+begin
+  { The native list-view must not hold an image list while it is cleared or
+    resized. Otherwise comctl32 can raise "Failed to write image list". }
+  ThumbnailTimer.Enabled := False;
+  FileList.LargeImages := nil;
+  try
+    ThumbnailImages.Clear;
+    ThumbnailStagingImages.Clear;
+    if AResize then
+    begin
+      ThumbnailImages.Width := ThumbnailFrameWidth;
+      ThumbnailImages.Height := ThumbnailFrameHeight;
+      ThumbnailStagingImages.Width := ThumbnailFrameWidth;
+      ThumbnailStagingImages.Height := ThumbnailFrameHeight;
+    end;
+    FPlaceholderIndexes.Clear;
+    PreparePlaceholderImages;
+  finally
+    FileList.LargeImages := ThumbnailImages;
+  end;
+end;
+
 procedure TFrmVisualFileManager.RefreshThumbnailFrames;
 var
   VisibleIndex: Integer;
@@ -1456,10 +1479,7 @@ begin
   FQueuedThumbnailFiles.Clear;
   FThumbnailQueue.Clear;
   FThumbnailQueuePosition := 0;
-  ThumbnailImages.Clear;
-  ThumbnailStagingImages.Clear;
-  FPlaceholderIndexes.Clear;
-  PreparePlaceholderImages;
+  ResetThumbnailImageLists;
   VisibleIndex := 0;
   if Assigned(FileList.TopItem) then
     VisibleIndex := FileList.TopItem.Index;
@@ -1472,14 +1492,7 @@ begin
   if (ThumbnailImages.Width = ThumbnailFrameWidth) and
     (ThumbnailImages.Height = ThumbnailFrameHeight) then
     Exit;
-  ThumbnailImages.Clear;
-  ThumbnailStagingImages.Clear;
-  ThumbnailImages.Width := ThumbnailFrameWidth;
-  ThumbnailImages.Height := ThumbnailFrameHeight;
-  ThumbnailStagingImages.Width := ThumbnailFrameWidth;
-  ThumbnailStagingImages.Height := ThumbnailFrameHeight;
-  FPlaceholderIndexes.Clear;
-  PreparePlaceholderImages;
+  ResetThumbnailImageLists(True);
   ApplyThumbnailGridSpacing;
   RefreshThumbnailFrames;
 end;
