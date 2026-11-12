@@ -108,6 +108,7 @@ type
     AnimationDistanceBox: TComboBox;
     BackgroundColorBox: TColorBox;
     FontSizeBox: TComboBox;
+    FrameSizeBox: TComboBox;
     SearchEdit: TEdit;
     SortBox: TComboBox;
     ViewBox: TComboBox;
@@ -121,6 +122,10 @@ type
     MonitorTimer: TTimer;
     ThumbnailImages: TImageList;
     ThumbnailStagingImages: TImageList;
+    ThumbnailImagesLarge: TImageList;
+    ThumbnailStagingImagesLarge: TImageList;
+    ThumbnailImagesXLarge: TImageList;
+    ThumbnailStagingImagesXLarge: TImageList;
     procedure FormShow(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure BrowseClick(Sender: TObject);
@@ -134,6 +139,7 @@ type
     procedure AnimationDistanceChange(Sender: TObject);
     procedure BackgroundColorChange(Sender: TObject);
     procedure FontSizeChange(Sender: TObject);
+    procedure FrameSizeChange(Sender: TObject);
     procedure SearchChange(Sender: TObject);
     procedure SearchTimerTick(Sender: TObject);
     procedure SortChange(Sender: TObject);
@@ -189,6 +195,10 @@ type
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure RefreshThumbnailFrames;
+    procedure FrameSizeChange(Sender: TObject);
+    function ActiveThumbnailImages: TImageList;
+    function ActiveThumbnailStagingImages: TImageList;
+    function ThumbnailFrameScale: Double;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -233,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.40';
+  APPLICATION_VERSION = '1.2.41';
 
 {$R *.dfm}
 
@@ -696,7 +706,8 @@ var
   Ini: TIniFile;
   SavedFolder: string;
   SavedView, SavedClickMode, SavedFilter, SavedGroup, SavedAnimation,
-    SavedAnimationDuration, SavedAnimationDistance, SavedFontSize: Integer;
+    SavedAnimationDuration, SavedAnimationDistance, SavedFontSize,
+      SavedFrameSize: Integer;
   SavedBackgroundColor: TColor;
 begin
   FolderEdit.Text := TPath.GetDocumentsPath;
@@ -754,6 +765,11 @@ begin
     else
       FontSizeBox.ItemIndex := 3;
     ApplyFileTextSize;
+    SavedFrameSize := Ini.ReadInteger('General', 'ThumbnailFrameSize', 0);
+    if (SavedFrameSize >= 0) and (SavedFrameSize < FrameSizeBox.Items.Count) then
+      FrameSizeBox.ItemIndex := SavedFrameSize
+    else
+      FrameSizeBox.ItemIndex := 0;
   finally
     Ini.Free;
   end;
@@ -784,6 +800,7 @@ begin
       AnimationDistanceBox.ItemIndex);
     Ini.WriteInteger('General', 'BackgroundColor', Integer(Color));
     Ini.WriteInteger('General', 'FileTextSize', FontSizeBox.ItemIndex);
+    Ini.WriteInteger('General', 'ThumbnailFrameSize', FrameSizeBox.ItemIndex);
   finally
     Ini.Free;
   end;
@@ -1037,7 +1054,9 @@ begin
     90, 24);
   BackgroundColorBox.SetBounds(Max(16, AnimationDistanceBox.Left - 106), 2,
     100, 24);
-  StatusLabel.Width := Max(1, BackgroundColorBox.Left - 24);
+  FontSizeBox.SetBounds(Max(16, BackgroundColorBox.Left - 106), 2, 100, 24);
+  FrameSizeBox.SetBounds(Max(16, FontSizeBox.Left - 106), 2, 100, 24);
+  StatusLabel.Width := Max(1, FrameSizeBox.Left - 24);
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
