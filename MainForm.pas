@@ -187,6 +187,7 @@ type
     function ThumbnailAnimationDistance: Integer;
     procedure ApplyBackgroundColor(const AColor: TColor);
     procedure ApplyFileTextSize;
+    procedure ApplyThumbnailGridSpacing;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -231,7 +232,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.33';
+  APPLICATION_VERSION = '1.2.34';
 
 {$R *.dfm}
 
@@ -1041,6 +1042,7 @@ end;
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
 begin
   Caption := 'Dosya Yoneticisi v' + APPLICATION_VERSION;
+  ApplyFileTextSize;
   if FStartupScanDone then
     Exit;
   FStartupScanDone := True;
@@ -1391,12 +1393,30 @@ begin
     StartThumbnailEffect;
 end;
 
+procedure TFrmVisualFileManager.ApplyThumbnailGridSpacing;
+var
+  SpacingX, SpacingY: Integer;
+begin
+  { A larger label needs a larger icon cell.  This keeps virtual-list
+    thumbnail captions from touching the next row or column. }
+  SpacingX := Max(190, 160 + (FileList.Font.Size * 3));
+  SpacingY := Max(155, 120 + (FileList.Font.Size * 4));
+  if FileList.HandleAllocated then
+  begin
+    SendMessage(FileList.Handle, LVM_SETICONSPACING, 0,
+      NativeInt((SpacingX and $FFFF) or ((SpacingY and $FFFF) shl 16)));
+    if FileList.ViewStyle = vsIcon then
+      FileList.Arrange(arDefault);
+  end;
+end;
+
 procedure TFrmVisualFileManager.ApplyFileTextSize;
 begin
   { Keep the file name text intact; change only its readable display size. }
   FileList.ParentFont := False;
   FileList.Font.Name := 'Tahoma';
   FileList.Font.Size := 12 + (FontSizeBox.ItemIndex * 2);
+  ApplyThumbnailGridSpacing;
   FileList.Invalidate;
 end;
 
@@ -1436,6 +1456,7 @@ begin
   if ViewBox.ItemIndex = 1 then
   begin
     FileList.ViewStyle := vsIcon;
+    ApplyThumbnailGridSpacing;
     QueueThumbnailPage(0);
   end
   else
