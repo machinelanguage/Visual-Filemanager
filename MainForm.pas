@@ -188,6 +188,7 @@ type
     procedure ApplyBackgroundColor(const AColor: TColor);
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
+    procedure RefreshThumbnailFrames;
     procedure PreparePlaceholderImages;
     function PlaceholderImageIndex(const AFile: TFileEntry): Integer;
     function PlaceholderKey(const AFile: TFileEntry): string;
@@ -232,7 +233,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.34';
+  APPLICATION_VERSION = '1.2.35';
 
 {$R *.dfm}
 
@@ -1410,13 +1411,32 @@ begin
   end;
 end;
 
+procedure TFrmVisualFileManager.RefreshThumbnailFrames;
+var
+  VisibleIndex: Integer;
+begin
+  if (ViewBox.ItemIndex <> 1) or (FVisibleItems.Count = 0) then
+    Exit;
+  FThumbnailIndexes.Clear;
+  FQueuedThumbnailFiles.Clear;
+  FThumbnailQueue.Clear;
+  FThumbnailQueuePosition := 0;
+  ThumbnailImages.Clear;
+  ThumbnailStagingImages.Clear;
+  VisibleIndex := 0;
+  if Assigned(FileList.TopItem) then
+    VisibleIndex := FileList.TopItem.Index;
+  QueueThumbnailPage(VisibleIndex);
+  FileList.Invalidate;
+end;
+
 procedure TFrmVisualFileManager.ApplyFileTextSize;
 begin
-  { Keep the file name text intact; change only its readable display size. }
   FileList.ParentFont := False;
   FileList.Font.Name := 'Tahoma';
   FileList.Font.Size := 12 + (FontSizeBox.ItemIndex * 2);
   ApplyThumbnailGridSpacing;
+  RefreshThumbnailFrames;
   FileList.Invalidate;
 end;
 
@@ -1622,6 +1642,8 @@ function TFrmVisualFileManager.ThumbnailFileName(const AFile: TFileEntry): strin
 var
   CacheVersion: string;
 begin
+  { The cached source image remains JPEG; the filename drawn on its frame is
+    always rebuilt from the original file record at the selected text size. }
   CacheVersion := 'image-cache-v1';
   if IsVideoFile(AFile) then
     CacheVersion := 'video-frame-v1';
@@ -1721,8 +1743,9 @@ var
   CacheFile: string;
   Picture: TPicture;
   Bitmap: TBitmap;
-  ImageIndex: Integer;
+  ImageIndex, CaptionTop, ImageBottom: Integer;
   CaptionText: string;
+  CaptionArea: TRect;
 begin
   if (AIndex < 0) or (AIndex >= FFiles.Count) then
     Exit;
@@ -1761,16 +1784,21 @@ begin
     Bitmap.Canvas.Brush.Style := bsClear;
     Bitmap.Canvas.Rectangle(2, 2, 152, 116);
 
-    { The larger lower margin carries the image caption. }
-    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 94), Picture.Graphic);
+    { The only visible filename is inside the Polaroid frame.  More selected
+      text size reserves more room here and shrinks the image area slightly. }
+    CaptionTop := 96 - (FontSizeBox.ItemIndex * 4);
+    ImageBottom := CaptionTop - 4;
+    Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, ImageBottom), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $00939AA0;
-    Bitmap.Canvas.Rectangle(7, 7, 147, 95);
-    CaptionText := Copy(FFiles[AIndex].DisplayName, 1, 23);
+    Bitmap.Canvas.Rectangle(7, 7, 147, ImageBottom + 1);
+    CaptionText := ChangeFileExt(FFiles[AIndex].DisplayName, '');
     Bitmap.Canvas.Font.Name := 'Tahoma';
-    Bitmap.Canvas.Font.Size := 7;
+    Bitmap.Canvas.Font.Size := 7 + FontSizeBox.ItemIndex;
     Bitmap.Canvas.Font.Color := $004A535A;
     Bitmap.Canvas.Brush.Style := bsClear;
-    Bitmap.Canvas.TextOut(10, 100, CaptionText);
+    CaptionArea := Rect(8, CaptionTop, 146, 114);
+    DrawText(Bitmap.Canvas.Handle, PChar(CaptionText), Length(CaptionText),
+      CaptionArea, DT_CENTER or DT_WORDBREAK or DT_END_ELLIPSIS);
     Bitmap.Canvas.Pen.Color := clWhite;
     Bitmap.Canvas.MoveTo(3, 3);
     Bitmap.Canvas.LineTo(150, 3);
@@ -1959,7 +1987,10 @@ begin
     Exit;
   FileIndex := FVisibleItems[Item.Index];
   FileEntry := FFiles[FileIndex];
-  Item.Caption := FileEntry.DisplayName;
+  if ViewBox.ItemIndex = 1 then
+    Item.Caption := ''
+  else
+    Item.Caption := FileEntry.DisplayName;
   Item.SubItems.Clear;
   Item.SubItems.Add(FileEntry.Extension);
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
