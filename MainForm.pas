@@ -243,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.44';
+  APPLICATION_VERSION = '1.2.45';
 
 {$R *.dfm}
 
@@ -1451,8 +1451,9 @@ begin
   { Recreate icon coordinates only after a layout-affecting change. }
   FileList.Items.Count := 0;
   FileList.Items.Count := FVisibleItems.Count;
-  FileList.Arrange(arDefault);
-  SendMessage(FileList.Handle, LVM_SCROLL, 0, -32767);
+  SendMessage(FileList.Handle, LVM_ARRANGE, LVA_ALIGNTOP, 0);
+  if FVisibleItems.Count > 0 then
+    SendMessage(FileList.Handle, LVM_ENSUREVISIBLE, 0, 0);
   FileList.Invalidate;
 end;
 
@@ -1673,6 +1674,8 @@ begin
   end;
   QueueThumbnailPage(0);
   FileList.Items.Count := FVisibleItems.Count;
+  if ViewBox.ItemIndex = 1 then
+    ReflowThumbnailGrid;
   if FVisibleItems.Count = 0 then
     StatusLabel.Caption := 'Dosya bulunamadi.'
   else
