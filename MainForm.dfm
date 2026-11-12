@@ -228,6 +228,11 @@ object FrmVisualFileManager: TFrmVisualFileManager
         end>
       BorderStyle = bsNone
       Color = clWhite
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -15
+      Font.Name = 'Tahoma'
+      Font.Style = []
       LargeImages = ThumbnailImages
       OwnerData = True
       ReadOnly = True
