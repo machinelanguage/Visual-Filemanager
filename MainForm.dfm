@@ -53,6 +53,17 @@ object FrmVisualFileManager: TFrmVisualFileManager
       Shape = bsBox
       Style = bsRaised
     end
+    object VersionLabel: TLabel
+      Left = 972
+      Top = 18
+      Width = 184
+      Height = 16
+      Alignment = taRightJustify
+      Caption = 'Surum 1.2.29'
+      Font.Color = $00435463
+      Font.Style = [fsBold]
+      ParentFont = False
+    end
     object FolderEdit: TEdit
       Left = 16
       Top = 14
