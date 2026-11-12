@@ -113,6 +113,7 @@ type
     ViewBox: TComboBox;
     FilterBox: TComboBox;
     StatusLabel: TLabel;
+    VersionLabel: TLabel;
     FileList: TListView;
     SearchTimer: TTimer;
     ScanTimer: TTimer;
@@ -231,7 +232,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.28';
+  APPLICATION_VERSION = '1.2.29';
 
 {$R *.dfm}
 
