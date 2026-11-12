@@ -232,7 +232,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.31';
+  APPLICATION_VERSION = '1.2.32';
 
 {$R *.dfm}
 
@@ -1604,9 +1604,9 @@ var
   CacheVersion: string;
 begin
   { Card captions use the original source record, never the cache filename. }
-  CacheVersion := 'image-cache-v3';
+  CacheVersion := 'image-cache-v4';
   if IsVideoFile(AFile) then
-    CacheVersion := 'video-frame-v3';
+    CacheVersion := 'video-frame-v4';
   Result := TPath.Combine(FThumbnailFolder, IntToHex(HashText(AFile.FullName +
     '|' + IntToStr(AFile.Size) + '|' + IntToStr(Trunc(AFile.ModifiedAt * 86400000)) +
     '|' + CacheVersion), 8) + '.jpg');
@@ -1747,7 +1747,7 @@ begin
     Bitmap.Canvas.StretchDraw(Rect(8, 8, 146, 94), Picture.Graphic);
     Bitmap.Canvas.Pen.Color := $00939AA0;
     Bitmap.Canvas.Rectangle(7, 7, 147, 95);
-    CaptionText := Copy(FFiles[AIndex].DisplayName, 1, 23);
+    CaptionText := Copy(ChangeFileExt(FFiles[AIndex].DisplayName, ''), 1, 34);
     Bitmap.Canvas.Font.Name := 'Tahoma';
     Bitmap.Canvas.Font.Size := 7;
     Bitmap.Canvas.Font.Color := $004A535A;
@@ -1941,7 +1941,9 @@ begin
     Exit;
   FileIndex := FVisibleItems[Item.Index];
   FileEntry := FFiles[FileIndex];
-  Item.Caption := FileEntry.DisplayName;
+  { The thumbnail cache is JPEG, but file labels must always remain the
+    original source title without its technical extension. }
+  Item.Caption := ChangeFileExt(FileEntry.DisplayName, '');
   Item.SubItems.Clear;
   Item.SubItems.Add(FileEntry.Extension);
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
