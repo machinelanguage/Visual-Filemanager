@@ -243,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.47';
+  APPLICATION_VERSION = '1.2.48';
 
 {$R *.dfm}
 
@@ -2095,13 +2095,14 @@ end;
 
 procedure TFrmVisualFileManager.DeleteClick(Sender: TObject);
 var
-  Position, Index: Integer;
-  FileName, DeleteSource: string;
+  I, Position, Index, SelectedCount: Integer;
+  DeleteSource, FirstFileName: string;
   Operation: TSHFileOpStruct;
+  SelectedFiles: TDictionary<string, Boolean>;
 begin
-  if not Assigned(FileList.Selected) then
+  if FileList.SelCount = 0 then
   begin
-    MessageDlg('Silmek icin bir dosya secin.', mtInformation, [mbOK], 0);
+    MessageDlg('Silmek icin en az bir dosya secin.', mtInformation, [mbOK], 0);
     Exit;
   end;
 
@@ -2112,37 +2113,68 @@ begin
     Exit;
   end;
 
-  Position := FileList.Selected.Index;
-  if (Position < 0) or (Position >= FVisibleItems.Count) then
-    Exit;
-  Index := FVisibleItems[Position];
-  FileName := FFiles[Index].FullName;
+  SelectedFiles := TDictionary<string, Boolean>.Create;
+  try
+    DeleteSource := '';
+    FirstFileName := '';
+    for I := 0 to FileList.Items.Count - 1 do
+      if FileList.Items[I].Selected and (I < FVisibleItems.Count) then
+      begin
+        Position := I;
+        Index := FVisibleItems[Position];
+        if (Index >= 0) and (Index < FFiles.Count) and
+          not SelectedFiles.ContainsKey(FFiles[Index].FullName) then
+        begin
+          SelectedFiles.Add(FFiles[Index].FullName, True);
+          DeleteSource := DeleteSource + FFiles[Index].FullName + #0;
+          if FirstFileName = '' then
+            FirstFileName := FFiles[Index].FullName;
+        end;
+      end;
 
-  if MessageDlg('Secili dosya Geri Donusum Kutusu''na tasinacak. Devam edilsin mi?',
-    mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
-    Exit;
+    SelectedCount := SelectedFiles.Count;
+    if SelectedCount = 0 then
+      Exit;
 
-  if MessageDlg(Format('Son onay: "%s" dosyasi silinecek. Onayliyor musunuz?',
-    [ExtractFileName(FileName)]), mtWarning, [mbYes, mbNo], 0) <> mrYes then
-    Exit;
+    if MessageDlg(Format('%d secili dosya Geri Donusum Kutusu''na tasinacak. Devam edilsin mi?',
+      [SelectedCount]), mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
 
-  DeleteSource := FileName + #0#0;
-  ZeroMemory(@Operation, SizeOf(Operation));
-  Operation.Wnd := Handle;
-  Operation.wFunc := FO_DELETE;
-  Operation.pFrom := PChar(DeleteSource);
-  Operation.fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_SILENT;
+    if SelectedCount = 1 then
+    begin
+      if MessageDlg(Format('Son onay: "%s" dosyasi silinecek. Onayliyor musunuz?',
+        [ExtractFileName(FirstFileName)]), mtWarning, [mbYes, mbNo], 0) <> mrYes then
+        Exit;
+    end
+    else if MessageDlg(Format('Son onay: %d dosya silinecek. Onayliyor musunuz?',
+      [SelectedCount]), mtWarning, [mbYes, mbNo], 0) <> mrYes then
+      Exit;
 
-  if (SHFileOperation(Operation) <> 0) or Operation.fAnyOperationsAborted then
-  begin
-    MessageDlg('Dosya silinemedi.', mtError, [mbOK], 0);
-    Exit;
+    DeleteSource := DeleteSource + #0;
+    ZeroMemory(@Operation, SizeOf(Operation));
+    Operation.Wnd := Handle;
+    Operation.wFunc := FO_DELETE;
+    Operation.pFrom := PChar(DeleteSource);
+    Operation.fFlags := FOF_ALLOWUNDO or FOF_NOCONFIRMATION or FOF_SILENT;
+
+    if (SHFileOperation(Operation) <> 0) or Operation.fAnyOperationsAborted then
+    begin
+      MessageDlg('Dosyalardan biri silinemedi.', mtError, [mbOK], 0);
+      Exit;
+    end;
+
+    for I := FFiles.Count - 1 downto 0 do
+      if SelectedFiles.ContainsKey(FFiles[I].FullName) then
+      begin
+        FKnownFiles.Remove(CanonicalFileName(FFiles[I].FullName));
+        FFiles.Delete(I);
+      end;
+    Render;
+    StatusLabel.Caption := Format('%d dosya Geri Donusum Kutusu''na tasindi.',
+      [SelectedCount]);
+  finally
+    SelectedFiles.Free;
   end;
-
-  FKnownFiles.Remove(CanonicalFileName(FileName));
-  FFiles.Delete(Index);
-  Render;
-  StatusLabel.Caption := 'Dosya Geri Donusum Kutusu''na tasindi.';
 end;
 
 procedure TFrmVisualFileManager.OpenSelectedFile;
