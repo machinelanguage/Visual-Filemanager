@@ -264,10 +264,28 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Color = $00E6EDF3
     ParentBackground = False
     TabOrder = 2
-    object StatusLabel: TLabel
+    object FavoriteButton: TButton
       Left = 12
+      Top = 2
+      Width = 116
+      Height = 24
+      Caption = 'Favori Degistir'
+      TabOrder = 4
+      OnClick = FavoriteClick
+    end
+    object ShowFavoritesButton: TButton
+      Left = 136
+      Top = 2
+      Width = 132
+      Height = 24
+      Caption = 'Favorileri Goster'
+      TabOrder = 5
+      OnClick = ShowFavoritesClick
+    end
+    object StatusLabel: TLabel
+      Left = 276
       Top = 7
-      Width = 1000
+      Width = 380
       Height = 13
       Caption = 'Medya veya PDF klasoru secin.'
       Font.Color = $00435463
