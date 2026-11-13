@@ -101,6 +101,7 @@ type
     ScanButton: TButton;
     StopButton: TButton;
     DeleteButton: TButton;
+    DeleteModeButton: TButton;
     ClickModeBox: TComboBox;
     FolderGroupBox: TComboBox;
     AnimationBox: TComboBox;
@@ -133,6 +134,7 @@ type
     procedure ScanClick(Sender: TObject);
     procedure StopClick(Sender: TObject);
     procedure DeleteClick(Sender: TObject);
+    procedure DeleteModeClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
     procedure ThumbnailAnimationChange(Sender: TObject);
@@ -184,6 +186,7 @@ type
     FThumbnailFadeHoldTicks: Integer;
     FInitialThumbnailPageEnd: Integer;
     FThumbnailPageAnimationPlayed: Boolean;
+    FDeleteMode: Boolean;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
@@ -248,7 +251,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.54';
+  APPLICATION_VERSION = '1.2.55';
 
 {$R *.dfm}
 
@@ -971,15 +974,17 @@ begin
   if ClientWidth >= 1100 then
   begin
     ToolPanel.Height := 104;
-    FolderEdit.SetBounds(Margin, 12, ClientWidth - 456, 24);
+    FolderEdit.SetBounds(Margin, 12, ClientWidth - 680, 24);
     X := FolderEdit.Left + FolderEdit.Width + Gap;
     BrowseButton.SetBounds(X, 10, 86, TouchHeight);
     ScanButton.SetBounds(BrowseButton.Left + BrowseButton.Width + Gap, 10, 120,
       TouchHeight);
     StopButton.SetBounds(ScanButton.Left + ScanButton.Width + Gap, 10, 92,
       TouchHeight);
-    DeleteButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 10, 100,
-      TouchHeight);
+    DeleteModeButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 10,
+      120, TouchHeight);
+    DeleteButton.SetBounds(DeleteModeButton.Left + DeleteModeButton.Width + Gap,
+      10, 120, TouchHeight);
     SearchEdit.SetBounds(Margin, 50, 340, 24);
     SortBox.SetBounds(364, 50, 150, 24);
     ViewBox.SetBounds(522, 50, 140, 24);
@@ -1001,8 +1006,10 @@ begin
       TouchHeight);
     StopButton.SetBounds(ScanButton.Left + ScanButton.Width + Gap, 42, 112,
       TouchHeight);
-    DeleteButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 42, 100,
-      TouchHeight);
+    DeleteModeButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 42,
+      120, TouchHeight);
+    DeleteButton.SetBounds(DeleteModeButton.Left + DeleteModeButton.Width + Gap,
+      42, 120, TouchHeight);
     SearchEdit.SetBounds(Margin, 78, AvailableWidth, 24);
     ItemWidth := (AvailableWidth - (Gap * 2)) div 3;
     SortBox.SetBounds(Margin, 112, ItemWidth, 24);
@@ -1025,8 +1032,9 @@ begin
     ScanButton.SetBounds(BrowseButton.Left + BrowseButton.Width + Gap, 42, 116,
       TouchHeight);
     StopButton.SetBounds(Margin, 76, 118, TouchHeight);
-    DeleteButton.SetBounds(StopButton.Left + StopButton.Width + Gap, 76,
-      Max(90, AvailableWidth - StopButton.Width - Gap), TouchHeight);
+    DeleteModeButton.SetBounds(Margin, 76, 140, TouchHeight);
+    DeleteButton.SetBounds(DeleteModeButton.Left + DeleteModeButton.Width + Gap,
+      76, Max(90, AvailableWidth - DeleteModeButton.Width - Gap), TouchHeight);
     SearchEdit.SetBounds(Margin, 112, AvailableWidth, 24);
     ItemWidth := (AvailableWidth - Gap) div 2;
     SortBox.SetBounds(Margin, 146, ItemWidth, 24);
@@ -2146,7 +2154,9 @@ begin
     Item.Caption := ''
   else
     Item.Caption := FileEntry.DisplayName;
-  if FMarkedFiles.ContainsKey(FileEntry.FullName) then
+  if not FDeleteMode then
+    Item.StateIndex := -1
+  else if FMarkedFiles.ContainsKey(FileEntry.FullName) then
     Item.StateIndex := 1
   else
     Item.StateIndex := 0;
@@ -2165,6 +2175,18 @@ begin
     QueueThumbnailPage(Item.Index);
 end;
 
+procedure TFrmVisualFileManager.DeleteModeClick(Sender: TObject);
+begin
+  FDeleteMode := not FDeleteMode;
+  FMarkedFiles.Clear;
+  DeleteButton.Enabled := FDeleteMode;
+  if FDeleteMode then
+    DeleteModeButton.Caption := 'Silme Modunu Kapat'
+  else
+    DeleteModeButton.Caption := 'Silme Modu';
+  FileList.Invalidate;
+end;
+
 procedure TFrmVisualFileManager.DeleteClick(Sender: TObject);
 var
   I, Position, Index, SelectedCount: Integer;
@@ -2172,6 +2194,12 @@ var
   Operation: TSHFileOpStruct;
   SelectedFiles: TDictionary<string, Boolean>;
 begin
+  if not FDeleteMode then
+  begin
+    MessageDlg('Once Silme Modu butonuna basin.', mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
   if Assigned(FScanWorker) or Assigned(FVideoWorker) then
   begin
     MessageDlg('Tarama veya kucuk resim islemi tamamlanana kadar silme yapilamaz.',
@@ -2240,6 +2268,9 @@ begin
         FMarkedFiles.Remove(FFiles[I].FullName);
         FFiles.Delete(I);
       end;
+    FDeleteMode := False;
+    DeleteButton.Enabled := False;
+    DeleteModeButton.Caption := 'Silme Modu';
     Render;
     StatusLabel.Caption := Format('%d dosya Geri Donusum Kutusu''na tasindi.',
       [SelectedCount]);
@@ -2264,10 +2295,10 @@ end;
 
 procedure TFrmVisualFileManager.FileListClick(Sender: TObject);
 begin
-  if ClickModeBox.ItemIndex = 1 then
-    OpenSelectedFile
-  else
-    ToggleSelectedFileMark;
+  if FDeleteMode then
+    ToggleSelectedFileMark
+  else if ClickModeBox.ItemIndex = 1 then
+    OpenSelectedFile;
 end;
 
 procedure TFrmVisualFileManager.FileListMouseEnter(Sender: TObject);
