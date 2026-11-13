@@ -2356,6 +2356,7 @@ begin
       begin
         FKnownFiles.Remove(CanonicalFileName(FFiles[I].FullName));
         FMarkedFiles.Remove(FFiles[I].FullName);
+        FFavoriteFiles.Remove(FFiles[I].FullName);
         FFiles.Delete(I);
       end;
     FDeleteMode := False;
