@@ -229,6 +229,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
       BorderStyle = bsNone
       Color = clWhite
       LargeImages = ThumbnailImages
+      MultiSelect = True
       OwnerData = True
       ReadOnly = True
       RowSelect = True
