@@ -259,7 +259,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.57';
+  APPLICATION_VERSION = '1.2.58';
 
 {$R *.dfm}
 
@@ -2250,34 +2250,44 @@ end;
 
 procedure TFrmVisualFileManager.FavoriteClick(Sender: TObject);
 var
-  Position, FileIndex: Integer;
+  I, FileIndex, FavoriteCount: Integer;
   FileName: string;
+  SelectedFiles: TList<string>;
+  AddAsFavorites: Boolean;
 begin
-  if not Assigned(FileList.Selected) then
-  begin
-    MessageDlg('Favori durumunu degistirmek icin bir dosya secin.',
-      mtInformation, [mbOK], 0);
-    Exit;
-  end;
-  Position := FileList.Selected.Index;
-  if (Position < 0) or (Position >= FVisibleItems.Count) then
-    Exit;
-  FileIndex := FVisibleItems[Position];
-  FileName := FFiles[FileIndex].FullName;
-  if FFavoriteFiles.ContainsKey(FileName) then
-    FFavoriteFiles.Remove(FileName)
-  else
-    FFavoriteFiles.Add(FileName, True);
-  SaveSettings;
-  if FShowingFavorites then
-    Render
-  else
-  begin
-    FThumbnailIndexes.Remove(FileName);
-    FQueuedThumbnailFiles.Remove(FileName);
-    QueueThumbnail(FileIndex);
-    ThumbnailTimer.Enabled := True;
-    FileList.Invalidate;
+  SelectedFiles := TList<string>.Create;
+  try
+    AddAsFavorites := False;
+    FavoriteCount := 0;
+    for I := 0 to FileList.Items.Count - 1 do
+      if FileList.Items[I].Selected and (I < FVisibleItems.Count) then
+      begin
+        FileIndex := FVisibleItems[I];
+        FileName := FFiles[FileIndex].FullName;
+        SelectedFiles.Add(FileName);
+        if FFavoriteFiles.ContainsKey(FileName) then
+          Inc(FavoriteCount);
+      end;
+
+    if SelectedFiles.Count = 0 then
+    begin
+      MessageDlg('Favori durumunu degistirmek icin bir veya daha fazla dosya secin.',
+        mtInformation, [mbOK], 0);
+      Exit;
+    end;
+
+    { Mixed selections become favorites; an all-favorite selection is removed. }
+    AddAsFavorites := FavoriteCount <> SelectedFiles.Count;
+    for I := 0 to SelectedFiles.Count - 1 do
+      if AddAsFavorites then
+        FFavoriteFiles.AddOrSetValue(SelectedFiles[I], True)
+      else
+        FFavoriteFiles.Remove(SelectedFiles[I]);
+
+    SaveSettings;
+    Render;
+  finally
+    SelectedFiles.Free;
   end;
 end;
 
