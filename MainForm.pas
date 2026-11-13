@@ -263,7 +263,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.62';
+  APPLICATION_VERSION = '1.2.63';
 
 {$R *.dfm}
 
@@ -802,6 +802,11 @@ begin
       FrameSizeBox.ItemIndex := 0;
     FileList.LargeImages := ActiveThumbnailImages;
     LoadFavorites(Ini);
+    FShowingFavorites := Ini.ReadBool('General', 'ShowFavorites', False);
+    if FShowingFavorites then
+      ShowFavoritesButton.Caption := 'Tum Dosyalari Goster'
+    else
+      ShowFavoritesButton.Caption := 'Favorileri Goster';
   finally
     Ini.Free;
   end;
@@ -833,6 +838,7 @@ begin
     Ini.WriteInteger('General', 'BackgroundColor', Integer(Color));
     Ini.WriteInteger('General', 'FileTextSize', FontSizeBox.ItemIndex);
     Ini.WriteInteger('General', 'ThumbnailFrameSize', FrameSizeBox.ItemIndex);
+    Ini.WriteBool('General', 'ShowFavorites', FShowingFavorites);
     SaveFavorites(Ini);
   finally
     Ini.Free;
