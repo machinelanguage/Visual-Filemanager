@@ -2347,6 +2347,8 @@ begin
 end;
 
 procedure TFrmVisualFileManager.SelectionModeClick(Sender: TObject);
+var
+  I: Integer;
 begin
   if FDeleteMode then
     Exit;
