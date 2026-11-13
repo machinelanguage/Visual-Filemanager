@@ -248,7 +248,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.53';
+  APPLICATION_VERSION = '1.2.54';
 
 {$R *.dfm}
 
@@ -2147,9 +2147,9 @@ begin
   else
     Item.Caption := FileEntry.DisplayName;
   if FMarkedFiles.ContainsKey(FileEntry.FullName) then
-    Item.StateIndex := 2
+    Item.StateIndex := 1
   else
-    Item.StateIndex := 1;
+    Item.StateIndex := 0;
   Item.SubItems.Clear;
   Item.SubItems.Add(FileEntry.Extension);
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
