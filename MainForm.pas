@@ -1273,8 +1273,10 @@ begin
   FKnownFiles.Clear;
   FMarkedFiles.Clear;
   FDeleteMode := False;
+  FSelectionMode := False;
   DeleteButton.Enabled := False;
   DeleteModeButton.Caption := 'Silme Modu';
+  SelectionModeButton.Caption := 'Secim Modu';
   ActiveThumbnailImages.Clear;
   ActiveThumbnailStagingImages.Clear;
   PreparePlaceholderImages;
@@ -2264,7 +2266,9 @@ begin
     AddAsFavorites := False;
     FavoriteCount := 0;
     for I := 0 to FileList.Items.Count - 1 do
-      if FileList.Items[I].Selected and (I < FVisibleItems.Count) then
+      if (I < FVisibleItems.Count) and
+        ((FSelectionMode and FMarkedFiles.ContainsKey(FFiles[FVisibleItems[I]].FullName)) or
+         ((not FSelectionMode) and FileList.Items[I].Selected)) then
       begin
         FileIndex := FVisibleItems[I];
         FileName := FFiles[FileIndex].FullName;
