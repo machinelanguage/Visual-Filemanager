@@ -126,6 +126,7 @@ type
     ThumbnailStagingImagesLarge: TImageList;
     ThumbnailImagesXLarge: TImageList;
     ThumbnailStagingImagesXLarge: TImageList;
+    SelectionImages: TImageList;
     procedure FormShow(Sender: TObject);
     procedure FormResize(Sender: TObject);
     procedure BrowseClick(Sender: TObject);
@@ -165,6 +166,7 @@ type
     FQueuedThumbnailFiles: TDictionary<string, Boolean>;
     FPlaceholderIndexes: TDictionary<string, Integer>;
     FKnownFiles: TDictionary<string, Boolean>;
+    FMarkedFiles: TDictionary<string, Boolean>;
     FRootFolder: string;
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
@@ -193,6 +195,8 @@ type
     function ThumbnailAnimationDistance: Integer;
     procedure ApplyBackgroundColor(const AColor: TColor);
     procedure ApplyFileCheckboxes;
+    procedure PrepareSelectionImages;
+    procedure ToggleSelectedFileMark;
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure ReflowThumbnailGrid;
@@ -244,7 +248,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.51';
+  APPLICATION_VERSION = '1.2.52';
 
 {$R *.dfm}
 
@@ -663,6 +667,7 @@ begin
   FQueuedThumbnailFiles := TDictionary<string, Boolean>.Create;
   FPlaceholderIndexes := TDictionary<string, Integer>.Create;
   FKnownFiles := TDictionary<string, Boolean>.Create;
+  FMarkedFiles := TDictionary<string, Boolean>.Create;
   LoadSettings;
 end;
 
@@ -687,6 +692,7 @@ begin
     FVideoWorker.WaitFor;
     FVideoWorker.Free;
   end;
+  FMarkedFiles.Free;
   FKnownFiles.Free;
   FPlaceholderIndexes.Free;
   FQueuedThumbnailFiles.Free;
@@ -1049,6 +1055,7 @@ procedure TFrmVisualFileManager.FormShow(Sender: TObject);
 begin
   Caption := 'Dosya Yoneticisi v' + APPLICATION_VERSION;
   ApplyFileCheckboxes;
+  PrepareSelectionImages;
   ApplyFileTextSize;
   if FStartupScanDone then
     Exit;
@@ -2124,7 +2131,8 @@ begin
     DeleteSource := '';
     FirstFileName := '';
     for I := 0 to FileList.Items.Count - 1 do
-      if FileList.Items[I].Checked and (I < FVisibleItems.Count) then
+      if (I < FVisibleItems.Count) and
+        FMarkedFiles.ContainsKey(FFiles[FVisibleItems[I]].FullName) then
       begin
         Position := I;
         Index := FVisibleItems[Position];
@@ -2177,6 +2185,7 @@ begin
       if SelectedFiles.ContainsKey(FFiles[I].FullName) then
       begin
         FKnownFiles.Remove(CanonicalFileName(FFiles[I].FullName));
+        FMarkedFiles.Remove(FFiles[I].FullName);
         FFiles.Delete(I);
       end;
     Render;
@@ -2204,7 +2213,9 @@ end;
 procedure TFrmVisualFileManager.FileListClick(Sender: TObject);
 begin
   if ClickModeBox.ItemIndex = 1 then
-    OpenSelectedFile;
+    OpenSelectedFile
+  else
+    ToggleSelectedFileMark;
 end;
 
 procedure TFrmVisualFileManager.FileListMouseEnter(Sender: TObject);
