@@ -282,8 +282,17 @@ object FrmVisualFileManager: TFrmVisualFileManager
       TabOrder = 5
       OnClick = ShowFavoritesClick
     end
-    object StatusLabel: TLabel
+    object SelectionModeButton: TButton
       Left = 276
+      Top = 2
+      Width = 116
+      Height = 24
+      Caption = 'Secim Modu'
+      TabOrder = 6
+      OnClick = SelectionModeClick
+    end
+    object StatusLabel: TLabel
+      Left = 400
       Top = 7
       Width = 380
       Height = 13
