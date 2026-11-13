@@ -881,11 +881,12 @@ var
 begin
   Items := TStringList.Create;
   try
+    Items.StrictDelimiter := True;
+    Items.Delimiter := '|';
     for FileName in FFavoriteFiles.Keys do
       Items.Add(FileName);
     AIni.EraseSection('Favorites');
-    AIni.WriteString('Favorites', 'Items', StringReplace(Items.DelimitedText,
-      ',', '|', [rfReplaceAll]));
+    AIni.WriteString('Favorites', 'Items', Items.DelimitedText);
   finally
     Items.Free;
   end;
