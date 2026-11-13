@@ -1054,8 +1054,8 @@ end;
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
 begin
   Caption := 'Dosya Yoneticisi v' + APPLICATION_VERSION;
-  ApplyFileCheckboxes;
   PrepareSelectionImages;
+  ApplyFileCheckboxes;
   ApplyFileTextSize;
   if FStartupScanDone then
     Exit;
