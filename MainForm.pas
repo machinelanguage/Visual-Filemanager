@@ -864,7 +864,17 @@ begin
       for I := 0 to Keys.Count - 1 do
       begin
         FileName := AIni.ReadString('Favorites', Keys[I], '');
-        if FileName <> '' then
+        if SameText(Keys[I], 'Items') then
+        begin
+          Items.StrictDelimiter := True;
+          Items.Delimiter := '|';
+          Items.DelimitedText := FileName;
+          for FileName in Items do
+            if FileName <> '' then
+              FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
+          Items.Clear;
+        end
+        else if FileName <> '' then
           FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
       end;
     finally
