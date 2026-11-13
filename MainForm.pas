@@ -1217,6 +1217,10 @@ begin
   FQueuedThumbnailFiles.Clear;
   FPlaceholderIndexes.Clear;
   FKnownFiles.Clear;
+  FMarkedFiles.Clear;
+  FDeleteMode := False;
+  DeleteButton.Enabled := False;
+  DeleteModeButton.Caption := 'Silme Modu';
   ActiveThumbnailImages.Clear;
   ActiveThumbnailStagingImages.Clear;
   PreparePlaceholderImages;
