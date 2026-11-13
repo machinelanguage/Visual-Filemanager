@@ -117,6 +117,7 @@ type
     StatusLabel: TLabel;
     FavoriteButton: TButton;
     ShowFavoritesButton: TButton;
+    SelectionModeButton: TButton;
     FileList: TListView;
     SearchTimer: TTimer;
     ScanTimer: TTimer;
@@ -139,6 +140,7 @@ type
     procedure DeleteModeClick(Sender: TObject);
     procedure FavoriteClick(Sender: TObject);
     procedure ShowFavoritesClick(Sender: TObject);
+    procedure SelectionModeClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
     procedure ThumbnailAnimationChange(Sender: TObject);
@@ -193,6 +195,7 @@ type
     FInitialThumbnailPageEnd: Integer;
     FThumbnailPageAnimationPlayed: Boolean;
     FDeleteMode: Boolean;
+    FSelectionMode: Boolean;
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
@@ -259,7 +262,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.58';
+  APPLICATION_VERSION = '1.2.59';
 
 {$R *.dfm}
 
@@ -1105,7 +1108,8 @@ begin
   FrameSizeBox.SetBounds(Max(16, FontSizeBox.Left - 106), 2, 100, 24);
   FavoriteButton.SetBounds(12, 2, 116, 24);
   ShowFavoritesButton.SetBounds(136, 2, 132, 24);
-  StatusLabel.Left := 276;
+  SelectionModeButton.SetBounds(276, 2, 116, 24);
+  StatusLabel.Left := 400;
   StatusLabel.Width := Max(1, FrameSizeBox.Left - StatusLabel.Left - 8);
 end;
 
@@ -2227,7 +2231,7 @@ begin
     Item.Caption := ''
   else
     Item.Caption := FileEntry.DisplayName;
-  if not FDeleteMode then
+  if not (FDeleteMode or FSelectionMode) then
     Item.StateIndex := -1
   else if FMarkedFiles.ContainsKey(FileEntry.FullName) then
     Item.StateIndex := 1
@@ -2291,6 +2295,19 @@ begin
   end;
 end;
 
+procedure TFrmVisualFileManager.SelectionModeClick(Sender: TObject);
+begin
+  if FDeleteMode then
+    Exit;
+  FSelectionMode := not FSelectionMode;
+  FMarkedFiles.Clear;
+  if FSelectionMode then
+    SelectionModeButton.Caption := 'Secimi Bitir'
+  else
+    SelectionModeButton.Caption := 'Secim Modu';
+  FileList.Invalidate;
+end;
+
 procedure TFrmVisualFileManager.ShowFavoritesClick(Sender: TObject);
 begin
   FShowingFavorites := not FShowingFavorites;
@@ -2304,12 +2321,14 @@ end;
 procedure TFrmVisualFileManager.DeleteModeClick(Sender: TObject);
 begin
   FDeleteMode := not FDeleteMode;
+  FSelectionMode := FDeleteMode;
   FMarkedFiles.Clear;
   DeleteButton.Enabled := FDeleteMode;
   if FDeleteMode then
     DeleteModeButton.Caption := 'Silme Modunu Kapat'
   else
     DeleteModeButton.Caption := 'Silme Modu';
+  SelectionModeButton.Caption := 'Secim Modu';
   FileList.Invalidate;
 end;
 
@@ -2422,7 +2441,7 @@ end;
 
 procedure TFrmVisualFileManager.FileListClick(Sender: TObject);
 begin
-  if FDeleteMode then
+  if FDeleteMode or FSelectionMode then
     ToggleSelectedFileMark
   else if ClickModeBox.ItemIndex = 1 then
     OpenSelectedFile;
