@@ -243,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.48';
+  APPLICATION_VERSION = '1.2.49';
 
 {$R *.dfm}
 
@@ -1453,7 +1453,7 @@ begin
   { TListView in Delphi 10.2 does not publish AutoArrange/Alignment. Set the
     native style at runtime without serializing unsupported DFM properties. }
   ListStyle := GetWindowLong(FileList.Handle, GWL_STYLE);
-  ListStyle := (ListStyle or LVS_AUTOARRANGE) and not LVS_ALIGNBOTTOM;
+  ListStyle := ListStyle or LVS_AUTOARRANGE;
   SetWindowLong(FileList.Handle, GWL_STYLE, ListStyle);
   SendMessage(FileList.Handle, LVM_ARRANGE, LVA_DEFAULT, 0);
   if FVisibleItems.Count > 0 then
