@@ -262,7 +262,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.60';
+  APPLICATION_VERSION = '1.2.61';
 
 {$R *.dfm}
 
@@ -834,36 +834,60 @@ end;
 
 procedure TFrmVisualFileManager.LoadFavorites(const AIni: TIniFile);
 var
-  Keys: TStringList;
+  Keys, Items: TStringList;
   I: Integer;
-  FileName: string;
+  FileName, Serialized: string;
 begin
   FFavoriteFiles.Clear;
-  Keys := TStringList.Create;
+  { New format stores the complete catalog under one stable key. The pipe
+    character cannot occur in a Windows file name, so it is a safe separator. }
+  Serialized := AIni.ReadString('Favorites', 'Items', '');
+  Items := TStringList.Create;
   try
-    AIni.ReadSection('Favorites', Keys);
-    for I := 0 to Keys.Count - 1 do
+    if Serialized <> '' then
     begin
-      FileName := AIni.ReadString('Favorites', Keys[I], '');
-      if FileName <> '' then
-        FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
+      Items.StrictDelimiter := True;
+      Items.Delimiter := '|';
+      Items.DelimitedText := Serialized;
+      for I := 0 to Items.Count - 1 do
+        if Items[I] <> '' then
+          FFavoriteFiles.AddOrSetValue(CanonicalFileName(Items[I]), True);
+    end
+    else
+    begin
+      { Read older numbered entries once, so existing favorites are preserved. }
+      Keys := TStringList.Create;
+      try
+        AIni.ReadSection('Favorites', Keys);
+        for I := 0 to Keys.Count - 1 do
+        begin
+          FileName := AIni.ReadString('Favorites', Keys[I], '');
+          if FileName <> '' then
+            FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
+        end;
+      finally
+        Keys.Free;
+      end;
     end;
   finally
-    Keys.Free;
+    Items.Free;
   end;
 end;
 
 procedure TFrmVisualFileManager.SaveFavorites(const AIni: TIniFile);
 var
   FileName: string;
-  Number: Integer;
+  Items: TStringList;
 begin
-  AIni.EraseSection('Favorites');
-  Number := 0;
-  for FileName in FFavoriteFiles.Keys do
-  begin
-    AIni.WriteString('Favorites', 'File' + IntToStr(Number), FileName);
-    Inc(Number);
+  Items := TStringList.Create;
+  try
+    for FileName in FFavoriteFiles.Keys do
+      Items.Add(FileName);
+    AIni.EraseSection('Favorites');
+    AIni.WriteString('Favorites', 'Items', StringReplace(Items.DelimitedText,
+      ',', '|', [rfReplaceAll]));
+  finally
+    Items.Free;
   end;
 end;
 
@@ -2328,7 +2352,12 @@ begin
   FSelectionMode := not FSelectionMode;
   FMarkedFiles.Clear;
   if FSelectionMode then
-    SelectionModeButton.Caption := 'Secimi Bitir'
+  begin
+    for I := 0 to FFiles.Count - 1 do
+      if FFavoriteFiles.ContainsKey(CanonicalFileName(FFiles[I].FullName)) then
+        FMarkedFiles.AddOrSetValue(FFiles[I].FullName, True);
+    SelectionModeButton.Caption := 'Secimi Bitir';
+  end
   else
     SelectionModeButton.Caption := 'Secim Modu';
   FileList.Invalidate;
