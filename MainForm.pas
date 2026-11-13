@@ -2391,6 +2391,7 @@ begin
     ShowFavoritesButton.Caption := 'Tum Dosyalari Goster'
   else
     ShowFavoritesButton.Caption := 'Favorileri Goster';
+  SaveSettings;
   Render;
 end;
 
