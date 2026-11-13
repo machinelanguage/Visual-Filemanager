@@ -259,7 +259,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.56';
+  APPLICATION_VERSION = '1.2.57';
 
 {$R *.dfm}
 
@@ -2012,6 +2012,24 @@ begin
       Bitmap.Width - Round(14 * FrameScale), Bitmap.Height - Round(6 * FrameScale));
     DrawText(Bitmap.Canvas.Handle, PChar(CaptionText), Length(CaptionText),
       CaptionArea, DT_CENTER or DT_WORDBREAK or DT_END_ELLIPSIS);
+    if FFavoriteFiles.ContainsKey(FFiles[AIndex].FullName) then
+    begin
+      Bitmap.Canvas.Brush.Style := bsSolid;
+      Bitmap.Canvas.Brush.Color := $0000B5FF;
+      Bitmap.Canvas.Pen.Color := $000078C0;
+      Bitmap.Canvas.Ellipse(Bitmap.Width - Round(29 * FrameScale),
+        Round(7 * FrameScale), Bitmap.Width - Round(7 * FrameScale),
+        Round(29 * FrameScale));
+      Bitmap.Canvas.Font.Name := 'Tahoma';
+      Bitmap.Canvas.Font.Size := Round(14 * FrameScale);
+      Bitmap.Canvas.Font.Style := [fsBold];
+      Bitmap.Canvas.Font.Color := clWhite;
+      Bitmap.Canvas.Brush.Style := bsClear;
+      Bitmap.Canvas.TextOut(Bitmap.Width - Round(24 * FrameScale),
+        Round(6 * FrameScale), '*');
+      Bitmap.Canvas.Font.Style := [];
+    end;
+
     Bitmap.Canvas.Pen.Color := clWhite;
     Bitmap.Canvas.MoveTo(Round(3 * FrameScale), Round(3 * FrameScale));
     Bitmap.Canvas.LineTo(Bitmap.Width - Round(10 * FrameScale), Round(3 * FrameScale));
@@ -2252,7 +2270,15 @@ begin
     FFavoriteFiles.Add(FileName, True);
   SaveSettings;
   if FShowingFavorites then
-    Render;
+    Render
+  else
+  begin
+    FThumbnailIndexes.Remove(FileName);
+    FQueuedThumbnailFiles.Remove(FileName);
+    QueueThumbnail(FileIndex);
+    ThumbnailTimer.Enabled := True;
+    FileList.Invalidate;
+  end;
 end;
 
 procedure TFrmVisualFileManager.ShowFavoritesClick(Sender: TObject);
