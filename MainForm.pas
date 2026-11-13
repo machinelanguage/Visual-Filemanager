@@ -1357,13 +1357,62 @@ begin
   FileList.Invalidate;
 end;
 
-procedure TFrmVisualFileManager.ApplyFileCheckboxes;
-const
-  ListViewCheckboxStyle = $00000004;
+procedure TFrmVisualFileManager.PrepareSelectionImages;
+var
+  Bitmap: TBitmap;
 begin
+  if SelectionImages.Count > 0 then
+    Exit;
+  Bitmap := TBitmap.Create;
+  try
+    Bitmap.SetSize(18, 18);
+    Bitmap.Canvas.Brush.Color := clWhite;
+    Bitmap.Canvas.FillRect(Rect(0, 0, 18, 18));
+    Bitmap.Canvas.Pen.Color := clGray;
+    Bitmap.Canvas.Rectangle(2, 2, 15, 15);
+    SelectionImages.Add(Bitmap, nil);
+    Bitmap.Canvas.Brush.Color := $00DDF5DF;
+    Bitmap.Canvas.FillRect(Rect(0, 0, 18, 18));
+    Bitmap.Canvas.Pen.Color := $00308030;
+    Bitmap.Canvas.Rectangle(2, 2, 15, 15);
+    Bitmap.Canvas.Pen.Width := 2;
+    Bitmap.Canvas.MoveTo(4, 8);
+    Bitmap.Canvas.LineTo(7, 12);
+    Bitmap.Canvas.LineTo(13, 5);
+    Bitmap.Canvas.Pen.Width := 1;
+    SelectionImages.Add(Bitmap, nil);
+  finally
+    Bitmap.Free;
+  end;
+end;
+
+procedure TFrmVisualFileManager.ApplyFileCheckboxes;
+begin
+  { Use a fixed custom state image list: native checkboxes are not rendered
+    reliably by the Delphi 10.2 virtual icon list. }
+  FileList.Checkboxes := False;
+  FileList.StateImages := SelectionImages;
+end;
+
+procedure TFrmVisualFileManager.ToggleSelectedFileMark;
+var
+  Position, FileIndex, VisibleIndex: Integer;
+  FileName: string;
+begin
+  if not Assigned(FileList.Selected) then
+    Exit;
+  Position := FileList.Selected.Index;
+  if (Position < 0) or (Position >= FVisibleItems.Count) then
+    Exit;
+  FileIndex := FVisibleItems[Position];
+  FileName := FFiles[FileIndex].FullName;
+  if FMarkedFiles.ContainsKey(FileName) then
+    FMarkedFiles.Remove(FileName)
+  else
+    FMarkedFiles.Add(FileName, True);
+  VisibleIndex := Position;
   if FileList.HandleAllocated then
-    SendMessage(FileList.Handle, LVM_SETEXTENDEDLISTVIEWSTYLE,
-      ListViewCheckboxStyle, ListViewCheckboxStyle);
+    SendMessage(FileList.Handle, LVM_REDRAWITEMS, VisibleIndex, VisibleIndex);
 end;
 
 procedure TFrmVisualFileManager.BackgroundColorChange(Sender: TObject);
@@ -2097,6 +2146,10 @@ begin
     Item.Caption := ''
   else
     Item.Caption := FileEntry.DisplayName;
+  if FMarkedFiles.ContainsKey(FileEntry.FullName) then
+    Item.StateIndex := 2
+  else
+    Item.StateIndex := 1;
   Item.SubItems.Clear;
   Item.SubItems.Add(FileEntry.Extension);
   Item.SubItems.Add(FileSizeText(FileEntry.Size));
