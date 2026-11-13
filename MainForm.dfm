@@ -227,10 +227,10 @@ object FrmVisualFileManager: TFrmVisualFileManager
           Width = 360
         end>
       BorderStyle = bsNone
-      Checkboxes = True
       Color = clWhite
       LargeImages = ThumbnailImages
       MultiSelect = True
+      StateImages = SelectionImages
       OwnerData = True
       ReadOnly = True
       RowSelect = True
@@ -441,6 +441,13 @@ object FrmVisualFileManager: TFrmVisualFileManager
     Height = 180
     Width = 240
     Left = 1112
+    Top = 408
+  end
+  object SelectionImages: TImageList
+    ColorDepth = cd32Bit
+    Height = 18
+    Width = 18
+    Left = 920
     Top = 408
   end
 end
