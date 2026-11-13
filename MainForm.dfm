@@ -227,6 +227,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
           Width = 360
         end>
       BorderStyle = bsNone
+      Checkboxes = True
       Color = clWhite
       LargeImages = ThumbnailImages
       MultiSelect = True
