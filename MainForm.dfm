@@ -48,7 +48,7 @@ object FrmVisualFileManager: TFrmVisualFileManager
     object ActionGroupBevel: TBevel
       Left = 834
       Top = 7
-      Width = 108
+      Width = 248
       Height = 39
       Shape = bsBox
       Style = bsRaised
@@ -88,13 +88,23 @@ object FrmVisualFileManager: TFrmVisualFileManager
       TabOrder = 3
       OnClick = StopClick
     end
-    object DeleteButton: TButton
+    object DeleteModeButton: TButton
       Left = 840
       Top = 13
-      Width = 100
+      Width = 120
       Height = 27
-      Caption = 'Dosyayi Sil'
+      Caption = 'Silme Modu'
       TabOrder = 4
+      OnClick = DeleteModeClick
+    end
+    object DeleteButton: TButton
+      Left = 968
+      Top = 13
+      Width = 120
+      Height = 27
+      Caption = 'Isaretlileri Sil'
+      Enabled = False
+      TabOrder = 5
       OnClick = DeleteClick
     end
     object SearchEdit: TEdit
