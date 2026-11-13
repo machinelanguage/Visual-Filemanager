@@ -248,7 +248,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.52';
+  APPLICATION_VERSION = '1.2.53';
 
 {$R *.dfm}
 
@@ -2168,7 +2168,7 @@ end;
 procedure TFrmVisualFileManager.DeleteClick(Sender: TObject);
 var
   I, Position, Index, SelectedCount: Integer;
-  DeleteSource, FirstFileName: string;
+  DeleteSource, FirstFileName, DeleteNames: string;
   Operation: TSHFileOpStruct;
   SelectedFiles: TDictionary<string, Boolean>;
 begin
@@ -2182,6 +2182,7 @@ begin
   SelectedFiles := TDictionary<string, Boolean>.Create;
   try
     DeleteSource := '';
+    DeleteNames := '';
     FirstFileName := '';
     for I := 0 to FileList.Items.Count - 1 do
       if (I < FVisibleItems.Count) and
@@ -2194,6 +2195,8 @@ begin
         begin
           SelectedFiles.Add(FFiles[Index].FullName, True);
           DeleteSource := DeleteSource + FFiles[Index].FullName + #0;
+          DeleteNames := DeleteNames + ExtractFileName(FFiles[Index].FullName) +
+            sLineBreak;
           if FirstFileName = '' then
             FirstFileName := FFiles[Index].FullName;
         end;
@@ -2211,14 +2214,10 @@ begin
       [SelectedCount]), mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
       Exit;
 
-    if SelectedCount = 1 then
-    begin
-      if MessageDlg(Format('Son onay: "%s" dosyasi silinecek. Onayliyor musunuz?',
-        [ExtractFileName(FirstFileName)]), mtWarning, [mbYes, mbNo], 0) <> mrYes then
-        Exit;
-    end
-    else if MessageDlg(Format('Son onay: %d dosya silinecek. Onayliyor musunuz?',
-      [SelectedCount]), mtWarning, [mbYes, mbNo], 0) <> mrYes then
+    if MessageDlg(Format('Son onay: %d isaretli dosya silinecek:' +
+      sLineBreak + sLineBreak + '%s' + sLineBreak +
+      'Onayliyor musunuz?', [SelectedCount, DeleteNames]), mtWarning,
+      [mbYes, mbNo], 0) <> mrYes then
       Exit;
 
     DeleteSource := DeleteSource + #0;
