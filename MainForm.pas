@@ -243,7 +243,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.49';
+  APPLICATION_VERSION = '1.2.50';
 
 {$R *.dfm}
 
@@ -2100,12 +2100,6 @@ var
   Operation: TSHFileOpStruct;
   SelectedFiles: TDictionary<string, Boolean>;
 begin
-  if FileList.SelCount = 0 then
-  begin
-    MessageDlg('Silmek icin en az bir dosya secin.', mtInformation, [mbOK], 0);
-    Exit;
-  end;
-
   if Assigned(FScanWorker) or Assigned(FVideoWorker) then
   begin
     MessageDlg('Tarama veya kucuk resim islemi tamamlanana kadar silme yapilamaz.',
@@ -2118,7 +2112,7 @@ begin
     DeleteSource := '';
     FirstFileName := '';
     for I := 0 to FileList.Items.Count - 1 do
-      if FileList.Items[I].Selected and (I < FVisibleItems.Count) then
+      if FileList.Items[I].Checked and (I < FVisibleItems.Count) then
       begin
         Position := I;
         Index := FVisibleItems[Position];
@@ -2134,9 +2128,13 @@ begin
 
     SelectedCount := SelectedFiles.Count;
     if SelectedCount = 0 then
+    begin
+      MessageDlg('Silmek icin dosyalarin yanindaki kutulari isaretleyin.',
+        mtInformation, [mbOK], 0);
       Exit;
+    end;
 
-    if MessageDlg(Format('%d secili dosya Geri Donusum Kutusu''na tasinacak. Devam edilsin mi?',
+    if MessageDlg(Format('%d isaretli dosya Geri Donusum Kutusu''na tasinacak. Devam edilsin mi?',
       [SelectedCount]), mtConfirmation, [mbYes, mbNo], 0) <> mrYes then
       Exit;
 
