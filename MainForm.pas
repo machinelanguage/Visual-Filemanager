@@ -263,7 +263,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.63';
+  APPLICATION_VERSION = '1.2.64';
 
 {$R *.dfm}
 
@@ -1401,11 +1401,15 @@ begin
   Added := FScanWorker.TakeBatch(FFiles, 25);
   for I := PreviousCount to FFiles.Count - 1 do
     FKnownFiles.AddOrSetValue(CanonicalFileName(FFiles[I].FullName), True);
-  if (Added > 0) and (Trim(SearchEdit.Text) = '') then
+  if Added > 0 then
   begin
     while PreviousCount < FFiles.Count do
     begin
-      AddVisibleFile(PreviousCount);
+      if ((Trim(SearchEdit.Text) = '') or
+        ContainsText(FFiles[PreviousCount].DisplayName, Trim(SearchEdit.Text))) and
+        (not FShowingFavorites or FFavoriteFiles.ContainsKey(
+          CanonicalFileName(FFiles[PreviousCount].FullName))) then
+        AddVisibleFile(PreviousCount);
       Inc(PreviousCount);
     end;
     SortVisibleByNewest;
