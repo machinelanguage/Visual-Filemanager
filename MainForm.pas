@@ -199,6 +199,7 @@ type
     procedure LoadSettings;
     procedure SaveSettings;
     function SettingsFileName: string;
+    function FavoritesFileName: string;
     procedure RefreshThumbnails(const AForce: Boolean = False);
     procedure PublishThumbnails;
     procedure StartThumbnailEffect;
@@ -262,7 +263,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.61';
+  APPLICATION_VERSION = '1.2.62';
 
 {$R *.dfm}
 
@@ -724,6 +725,12 @@ begin
   Result := TPath.Combine(TPath.GetDocumentsPath, 'VisualFileManager.ini');
 end;
 
+function TFrmVisualFileManager.FavoritesFileName: string;
+begin
+  Result := TPath.Combine(TPath.GetDocumentsPath,
+    'VisualFileManager.favorites.txt');
+end;
+
 procedure TFrmVisualFileManager.LoadSettings;
 var
   Ini: TIniFile;
@@ -836,38 +843,32 @@ procedure TFrmVisualFileManager.LoadFavorites(const AIni: TIniFile);
 var
   Keys, Items: TStringList;
   I: Integer;
-  FileName, Serialized: string;
+  FileName: string;
 begin
   FFavoriteFiles.Clear;
-  { New format stores the complete catalog under one stable key. The pipe
-    character cannot occur in a Windows file name, so it is a safe separator. }
-  Serialized := AIni.ReadString('Favorites', 'Items', '');
   Items := TStringList.Create;
   try
-    if Serialized <> '' then
+    if FileExists(FavoritesFileName) then
     begin
-      Items.StrictDelimiter := True;
-      Items.Delimiter := '|';
-      Items.DelimitedText := Serialized;
+      Items.LoadFromFile(FavoritesFileName, TEncoding.UTF8);
       for I := 0 to Items.Count - 1 do
-        if Items[I] <> '' then
+        if Trim(Items[I]) <> '' then
           FFavoriteFiles.AddOrSetValue(CanonicalFileName(Items[I]), True);
-    end
-    else
-    begin
-      { Read older numbered entries once, so existing favorites are preserved. }
-      Keys := TStringList.Create;
-      try
-        AIni.ReadSection('Favorites', Keys);
-        for I := 0 to Keys.Count - 1 do
-        begin
-          FileName := AIni.ReadString('Favorites', Keys[I], '');
-          if FileName <> '' then
-            FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
-        end;
-      finally
-        Keys.Free;
+      Exit;
+    end;
+
+    { One-time import of earlier INI based records. }
+    Keys := TStringList.Create;
+    try
+      AIni.ReadSection('Favorites', Keys);
+      for I := 0 to Keys.Count - 1 do
+      begin
+        FileName := AIni.ReadString('Favorites', Keys[I], '');
+        if FileName <> '' then
+          FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
       end;
+    finally
+      Keys.Free;
     end;
   finally
     Items.Free;
@@ -881,12 +882,13 @@ var
 begin
   Items := TStringList.Create;
   try
-    Items.StrictDelimiter := True;
-    Items.Delimiter := '|';
+    Items.Sorted := True;
+    Items.Duplicates := dupIgnore;
     for FileName in FFavoriteFiles.Keys do
       Items.Add(FileName);
+    Items.SaveToFile(FavoritesFileName, TEncoding.UTF8);
+    { Retain no partial INI catalog; the text catalog is the single source. }
     AIni.EraseSection('Favorites');
-    AIni.WriteString('Favorites', 'Items', Items.DelimitedText);
   finally
     Items.Free;
   end;
