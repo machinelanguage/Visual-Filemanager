@@ -2308,9 +2308,14 @@ begin
       if FileIndex >= 0 then
         QueueThumbnail(FileIndex);
     end;
-    ThumbnailTimer.Enabled := FThumbnailQueuePosition < FThumbnailQueue.Count;
     SaveSettings;
-    Render;
+    if FShowingFavorites then
+      Render
+    else
+    begin
+      ThumbnailTimer.Enabled := FThumbnailQueuePosition < FThumbnailQueue.Count;
+      FileList.Invalidate;
+    end;
   finally
     SelectedFiles.Free;
   end;
