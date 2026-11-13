@@ -829,6 +829,41 @@ begin
   end;
 end;
 
+procedure TFrmVisualFileManager.LoadFavorites(const AIni: TIniFile);
+var
+  Keys: TStringList;
+  I: Integer;
+  FileName: string;
+begin
+  FFavoriteFiles.Clear;
+  Keys := TStringList.Create;
+  try
+    AIni.ReadSection('Favorites', Keys);
+    for I := 0 to Keys.Count - 1 do
+    begin
+      FileName := AIni.ReadString('Favorites', Keys[I], '');
+      if FileName <> '' then
+        FFavoriteFiles.AddOrSetValue(FileName, True);
+    end;
+  finally
+    Keys.Free;
+  end;
+end;
+
+procedure TFrmVisualFileManager.SaveFavorites(const AIni: TIniFile);
+var
+  FileName: string;
+  Number: Integer;
+begin
+  AIni.EraseSection('Favorites');
+  Number := 0;
+  for FileName in FFavoriteFiles.Keys do
+  begin
+    AIni.WriteString('Favorites', 'File' + IntToStr(Number), FileName);
+    Inc(Number);
+  end;
+end;
+
 procedure TFrmVisualFileManager.RefreshThumbnails(const AForce: Boolean);
 begin
   { Thumbnails are staged while scanning.  Do not redraw the visible list for
@@ -1768,7 +1803,8 @@ begin
   Query := Trim(SearchEdit.Text);
   for I := 0 to FFiles.Count - 1 do
   begin
-    if (Query = '') or ContainsText(FFiles[I].DisplayName, Query) then
+    if ((Query = '') or ContainsText(FFiles[I].DisplayName, Query)) and
+      (not FShowingFavorites or FFavoriteFiles.ContainsKey(FFiles[I].FullName)) then
       AddVisibleFile(I);
   end;
   QueueThumbnailPage(0);
@@ -2192,6 +2228,41 @@ begin
     Item.ImageIndex := PlaceholderImageIndex(FileEntry);
   if ViewBox.ItemIndex = 1 then
     QueueThumbnailPage(Item.Index);
+end;
+
+procedure TFrmVisualFileManager.FavoriteClick(Sender: TObject);
+var
+  Position, FileIndex: Integer;
+  FileName: string;
+begin
+  if not Assigned(FileList.Selected) then
+  begin
+    MessageDlg('Favori durumunu degistirmek icin bir dosya secin.',
+      mtInformation, [mbOK], 0);
+    Exit;
+  end;
+  Position := FileList.Selected.Index;
+  if (Position < 0) or (Position >= FVisibleItems.Count) then
+    Exit;
+  FileIndex := FVisibleItems[Position];
+  FileName := FFiles[FileIndex].FullName;
+  if FFavoriteFiles.ContainsKey(FileName) then
+    FFavoriteFiles.Remove(FileName)
+  else
+    FFavoriteFiles.Add(FileName, True);
+  SaveSettings;
+  if FShowingFavorites then
+    Render;
+end;
+
+procedure TFrmVisualFileManager.ShowFavoritesClick(Sender: TObject);
+begin
+  FShowingFavorites := not FShowingFavorites;
+  if FShowingFavorites then
+    ShowFavoritesButton.Caption := 'Tum Dosyalari Goster'
+  else
+    ShowFavoritesButton.Caption := 'Favorileri Goster';
+  Render;
 end;
 
 procedure TFrmVisualFileManager.DeleteModeClick(Sender: TObject);
