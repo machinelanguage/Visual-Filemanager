@@ -115,6 +115,8 @@ type
     ViewBox: TComboBox;
     FilterBox: TComboBox;
     StatusLabel: TLabel;
+    FavoriteButton: TButton;
+    ShowFavoritesButton: TButton;
     FileList: TListView;
     SearchTimer: TTimer;
     ScanTimer: TTimer;
@@ -135,6 +137,8 @@ type
     procedure StopClick(Sender: TObject);
     procedure DeleteClick(Sender: TObject);
     procedure DeleteModeClick(Sender: TObject);
+    procedure FavoriteClick(Sender: TObject);
+    procedure ShowFavoritesClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
     procedure ThumbnailAnimationChange(Sender: TObject);
@@ -169,6 +173,8 @@ type
     FPlaceholderIndexes: TDictionary<string, Integer>;
     FKnownFiles: TDictionary<string, Boolean>;
     FMarkedFiles: TDictionary<string, Boolean>;
+    FFavoriteFiles: TDictionary<string, Boolean>;
+    FShowingFavorites: Boolean;
     FRootFolder: string;
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
@@ -200,6 +206,8 @@ type
     procedure ApplyFileCheckboxes;
     procedure PrepareSelectionImages;
     procedure ToggleSelectedFileMark;
+    procedure LoadFavorites(const AIni: TIniFile);
+    procedure SaveFavorites(const AIni: TIniFile);
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure ReflowThumbnailGrid;
@@ -251,7 +259,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.55';
+  APPLICATION_VERSION = '1.2.56';
 
 {$R *.dfm}
 
@@ -671,6 +679,7 @@ begin
   FPlaceholderIndexes := TDictionary<string, Integer>.Create;
   FKnownFiles := TDictionary<string, Boolean>.Create;
   FMarkedFiles := TDictionary<string, Boolean>.Create;
+  FFavoriteFiles := TDictionary<string, Boolean>.Create;
   LoadSettings;
 end;
 
@@ -695,6 +704,7 @@ begin
     FVideoWorker.WaitFor;
     FVideoWorker.Free;
   end;
+  FFavoriteFiles.Free;
   FMarkedFiles.Free;
   FKnownFiles.Free;
   FPlaceholderIndexes.Free;
@@ -781,6 +791,7 @@ begin
     else
       FrameSizeBox.ItemIndex := 0;
     FileList.LargeImages := ActiveThumbnailImages;
+    LoadFavorites(Ini);
   finally
     Ini.Free;
   end;
@@ -812,6 +823,7 @@ begin
     Ini.WriteInteger('General', 'BackgroundColor', Integer(Color));
     Ini.WriteInteger('General', 'FileTextSize', FontSizeBox.ItemIndex);
     Ini.WriteInteger('General', 'ThumbnailFrameSize', FrameSizeBox.ItemIndex);
+    SaveFavorites(Ini);
   finally
     Ini.Free;
   end;
@@ -1056,7 +1068,10 @@ begin
     100, 24);
   FontSizeBox.SetBounds(Max(16, BackgroundColorBox.Left - 106), 2, 100, 24);
   FrameSizeBox.SetBounds(Max(16, FontSizeBox.Left - 106), 2, 100, 24);
-  StatusLabel.Width := Max(1, FrameSizeBox.Left - 24);
+  FavoriteButton.SetBounds(12, 2, 116, 24);
+  ShowFavoritesButton.SetBounds(136, 2, 132, 24);
+  StatusLabel.Left := 276;
+  StatusLabel.Width := Max(1, FrameSizeBox.Left - StatusLabel.Left - 8);
 end;
 
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
