@@ -262,7 +262,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.59';
+  APPLICATION_VERSION = '1.2.60';
 
 {$R *.dfm}
 
@@ -846,7 +846,7 @@ begin
     begin
       FileName := AIni.ReadString('Favorites', Keys[I], '');
       if FileName <> '' then
-        FFavoriteFiles.AddOrSetValue(FileName, True);
+        FFavoriteFiles.AddOrSetValue(CanonicalFileName(FileName), True);
     end;
   finally
     Keys.Free;
@@ -1810,7 +1810,8 @@ begin
   for I := 0 to FFiles.Count - 1 do
   begin
     if ((Query = '') or ContainsText(FFiles[I].DisplayName, Query)) and
-      (not FShowingFavorites or FFavoriteFiles.ContainsKey(FFiles[I].FullName)) then
+      (not FShowingFavorites or FFavoriteFiles.ContainsKey(
+        CanonicalFileName(FFiles[I].FullName))) then
       AddVisibleFile(I);
   end;
   QueueThumbnailPage(0);
@@ -2018,7 +2019,7 @@ begin
       Bitmap.Width - Round(14 * FrameScale), Bitmap.Height - Round(6 * FrameScale));
     DrawText(Bitmap.Canvas.Handle, PChar(CaptionText), Length(CaptionText),
       CaptionArea, DT_CENTER or DT_WORDBREAK or DT_END_ELLIPSIS);
-    if FFavoriteFiles.ContainsKey(FFiles[AIndex].FullName) then
+    if FFavoriteFiles.ContainsKey(CanonicalFileName(FFiles[AIndex].FullName)) then
     begin
       Bitmap.Canvas.Brush.Style := bsSolid;
       Bitmap.Canvas.Brush.Color := $0000B5FF;
@@ -2273,7 +2274,7 @@ begin
         FileIndex := FVisibleItems[I];
         FileName := FFiles[FileIndex].FullName;
         SelectedFiles.Add(FileName);
-        if FFavoriteFiles.ContainsKey(FileName) then
+        if FFavoriteFiles.ContainsKey(CanonicalFileName(FileName)) then
           Inc(FavoriteCount);
       end;
 
@@ -2288,10 +2289,26 @@ begin
     AddAsFavorites := FavoriteCount <> SelectedFiles.Count;
     for I := 0 to SelectedFiles.Count - 1 do
       if AddAsFavorites then
-        FFavoriteFiles.AddOrSetValue(SelectedFiles[I], True)
+        FFavoriteFiles.AddOrSetValue(CanonicalFileName(SelectedFiles[I]), True)
       else
-        FFavoriteFiles.Remove(SelectedFiles[I]);
+        FFavoriteFiles.Remove(CanonicalFileName(SelectedFiles[I]));
 
+    { Refresh every affected card so each favorite receives its star icon. }
+    for I := 0 to SelectedFiles.Count - 1 do
+    begin
+      FThumbnailIndexes.Remove(SelectedFiles[I]);
+      FQueuedThumbnailFiles.Remove(SelectedFiles[I]);
+      FileIndex := -1;
+      for FavoriteCount := 0 to FFiles.Count - 1 do
+        if SameText(FFiles[FavoriteCount].FullName, SelectedFiles[I]) then
+        begin
+          FileIndex := FavoriteCount;
+          Break;
+        end;
+      if FileIndex >= 0 then
+        QueueThumbnail(FileIndex);
+    end;
+    ThumbnailTimer.Enabled := FThumbnailQueuePosition < FThumbnailQueue.Count;
     SaveSettings;
     Render;
   finally
@@ -2415,7 +2432,7 @@ begin
       begin
         FKnownFiles.Remove(CanonicalFileName(FFiles[I].FullName));
         FMarkedFiles.Remove(FFiles[I].FullName);
-        FFavoriteFiles.Remove(FFiles[I].FullName);
+        FFavoriteFiles.Remove(CanonicalFileName(FFiles[I].FullName));
         FFiles.Delete(I);
       end;
     FDeleteMode := False;
