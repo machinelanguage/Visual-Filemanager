@@ -192,6 +192,7 @@ type
     function ThumbnailAnimationDuration: Integer;
     function ThumbnailAnimationDistance: Integer;
     procedure ApplyBackgroundColor(const AColor: TColor);
+    procedure ApplyFileCheckboxes;
     procedure ApplyFileTextSize;
     procedure ApplyThumbnailGridSpacing;
     procedure ReflowThumbnailGrid;
@@ -243,7 +244,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.50';
+  APPLICATION_VERSION = '1.2.51';
 
 {$R *.dfm}
 
@@ -1047,6 +1048,7 @@ end;
 procedure TFrmVisualFileManager.FormShow(Sender: TObject);
 begin
   Caption := 'Dosya Yoneticisi v' + APPLICATION_VERSION;
+  ApplyFileCheckboxes;
   ApplyFileTextSize;
   if FStartupScanDone then
     Exit;
@@ -1348,6 +1350,15 @@ begin
   FileList.Invalidate;
 end;
 
+procedure TFrmVisualFileManager.ApplyFileCheckboxes;
+const
+  ListViewCheckboxStyle = $00000004;
+begin
+  if FileList.HandleAllocated then
+    SendMessage(FileList.Handle, LVM_SETEXTENDEDLISTVIEWSTYLE,
+      ListViewCheckboxStyle, ListViewCheckboxStyle);
+end;
+
 procedure TFrmVisualFileManager.BackgroundColorChange(Sender: TObject);
 begin
   ApplyBackgroundColor(BackgroundColorBox.Selected);
@@ -1542,6 +1553,7 @@ end;
 
 procedure TFrmVisualFileManager.ViewChange(Sender: TObject);
 begin
+  ApplyFileCheckboxes;
   SaveSettings;
   if ViewBox.ItemIndex = 1 then
   begin
