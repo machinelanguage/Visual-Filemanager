@@ -2529,6 +2529,55 @@ begin
     SW_SHOWNORMAL);
 end;
 
+procedure TFrmVisualFileManager.OpenSelectedVideoWithAlternativePlayer;
+var
+  Position, Index: Integer;
+  Dialog: TOpenDialog;
+  Parameters: string;
+begin
+  if not Assigned(FileList.Selected) then
+  begin
+    MessageDlg('Alternatif oynaticida acmak icin bir video secin.',
+      mtInformation, [mbOK], 0);
+    Exit;
+  end;
+  Position := FileList.Selected.Index;
+  if (Position < 0) or (Position >= FVisibleItems.Count) then
+    Exit;
+  Index := FVisibleItems[Position];
+  if not IsVideoFile(FFiles[Index]) then
+  begin
+    MessageDlg('Alternatif oynatici yalnizca video dosyalari icin kullanilir.',
+      mtInformation, [mbOK], 0);
+    Exit;
+  end;
+
+  if not FileExists(FAlternativeVideoPlayer) then
+  begin
+    Dialog := TOpenDialog.Create(nil);
+    try
+      Dialog.Title := 'Alternatif video oynatici EXE dosyasini secin';
+      Dialog.Filter := 'Uygulama dosyalari (*.exe)|*.exe';
+      if not Dialog.Execute then
+        Exit;
+      FAlternativeVideoPlayer := Dialog.FileName;
+      SaveSettings;
+    finally
+      Dialog.Free;
+    end;
+  end;
+
+  Parameters := '"' + FFiles[Index].FullName + '"';
+  if ShellExecute(Handle, 'open', PChar(FAlternativeVideoPlayer),
+    PChar(Parameters), nil, SW_SHOWNORMAL) <= 32 then
+    MessageDlg('Alternatif oynatici baslatilamadi.', mtError, [mbOK], 0);
+end;
+
+procedure TFrmVisualFileManager.AlternatePlayerClick(Sender: TObject);
+begin
+  OpenSelectedVideoWithAlternativePlayer;
+end;
+
 procedure TFrmVisualFileManager.FileListClick(Sender: TObject);
 begin
   if FDeleteMode or FSelectionMode then
