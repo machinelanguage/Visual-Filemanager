@@ -267,7 +267,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.65';
+  APPLICATION_VERSION = '1.2.66';
 
 {$R *.dfm}
 
@@ -2567,7 +2567,13 @@ begin
     end;
   end;
 
-  Parameters := '"' + FFiles[Index].FullName + '"';
+  { VLC normally forwards a new file to its existing instance, replacing the
+    current playback. These switches force a second independent player. }
+  if SameText(ExtractFileName(FAlternativeVideoPlayer), 'vlc.exe') then
+    Parameters := '--no-one-instance --no-playlist-enqueue "' +
+      FFiles[Index].FullName + '"'
+  else
+    Parameters := '"' + FFiles[Index].FullName + '"';
   if ShellExecute(Handle, 'open', PChar(FAlternativeVideoPlayer),
     PChar(Parameters), nil, SW_SHOWNORMAL) <= 32 then
     MessageDlg('Alternatif oynatici baslatilamadi.', mtError, [mbOK], 0);
