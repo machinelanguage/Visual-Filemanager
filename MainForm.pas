@@ -102,6 +102,7 @@ type
     StopButton: TButton;
     DeleteButton: TButton;
     DeleteModeButton: TButton;
+    AlternatePlayerButton: TButton;
     ClickModeBox: TComboBox;
     FolderGroupBox: TComboBox;
     AnimationBox: TComboBox;
@@ -141,6 +142,7 @@ type
     procedure FavoriteClick(Sender: TObject);
     procedure ShowFavoritesClick(Sender: TObject);
     procedure SelectionModeClick(Sender: TObject);
+    procedure AlternatePlayerClick(Sender: TObject);
     procedure ClickModeChange(Sender: TObject);
     procedure FolderGroupChange(Sender: TObject);
     procedure ThumbnailAnimationChange(Sender: TObject);
@@ -177,6 +179,7 @@ type
     FMarkedFiles: TDictionary<string, Boolean>;
     FFavoriteFiles: TDictionary<string, Boolean>;
     FShowingFavorites: Boolean;
+    FAlternativeVideoPlayer: string;
     FRootFolder: string;
     FThumbnailFolder: string;
     FThumbnailRefreshCount: Integer;
@@ -230,6 +233,7 @@ type
     procedure AddMonitoredFile(const AFileName: string);
     procedure RemoveDuplicateFiles;
     procedure OpenSelectedFile;
+    procedure OpenSelectedVideoWithAlternativePlayer;
     procedure Render;
     procedure AddVisibleFile(const AIndex: Integer);
     procedure SortVisibleByNewest;
@@ -263,7 +267,7 @@ uses
   Vcl.Imaging.jpeg, Vcl.Imaging.pngimage, Vcl.Imaging.GIFImg;
 
 const
-  APPLICATION_VERSION = '1.2.64';
+  APPLICATION_VERSION = '1.2.65';
 
 {$R *.dfm}
 
@@ -802,6 +806,8 @@ begin
       FrameSizeBox.ItemIndex := 0;
     FileList.LargeImages := ActiveThumbnailImages;
     LoadFavorites(Ini);
+    FAlternativeVideoPlayer := Ini.ReadString('General',
+      'AlternativeVideoPlayer', '');
     FShowingFavorites := Ini.ReadBool('General', 'ShowFavorites', False);
     if FShowingFavorites then
       ShowFavoritesButton.Caption := 'Tum Dosyalari Goster'
@@ -839,6 +845,7 @@ begin
     Ini.WriteInteger('General', 'FileTextSize', FontSizeBox.ItemIndex);
     Ini.WriteInteger('General', 'ThumbnailFrameSize', FrameSizeBox.ItemIndex);
     Ini.WriteBool('General', 'ShowFavorites', FShowingFavorites);
+    Ini.WriteString('General', 'AlternativeVideoPlayer', FAlternativeVideoPlayer);
     SaveFavorites(Ini);
   finally
     Ini.Free;
@@ -1067,7 +1074,7 @@ begin
   if ClientWidth >= 1100 then
   begin
     ToolPanel.Height := 104;
-    FolderEdit.SetBounds(Margin, 12, ClientWidth - 680, 24);
+    FolderEdit.SetBounds(Margin, 12, ClientWidth - 830, 24);
     X := FolderEdit.Left + FolderEdit.Width + Gap;
     BrowseButton.SetBounds(X, 10, 86, TouchHeight);
     ScanButton.SetBounds(BrowseButton.Left + BrowseButton.Width + Gap, 10, 120,
@@ -1078,6 +1085,8 @@ begin
       120, TouchHeight);
     DeleteButton.SetBounds(DeleteModeButton.Left + DeleteModeButton.Width + Gap,
       10, 120, TouchHeight);
+    AlternatePlayerButton.SetBounds(DeleteButton.Left + DeleteButton.Width + Gap,
+      10, 150, TouchHeight);
     SearchEdit.SetBounds(Margin, 50, 340, 24);
     SortBox.SetBounds(364, 50, 150, 24);
     ViewBox.SetBounds(522, 50, 140, 24);
