@@ -107,6 +107,15 @@ object FrmVisualFileManager: TFrmVisualFileManager
       TabOrder = 5
       OnClick = DeleteClick
     end
+    object AlternatePlayerButton: TButton
+      Left = 1096
+      Top = 13
+      Width = 150
+      Height = 27
+      Caption = 'Alternatif Oynat'
+      TabOrder = 6
+      OnClick = AlternatePlayerClick
+    end
     object SearchEdit: TEdit
       Left = 16
       Top = 46
